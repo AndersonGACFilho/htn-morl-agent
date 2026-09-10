@@ -67,6 +67,7 @@ nav:
       - Domain and state model: framework/model.md
       - Planner and agent: framework/planning-runtime.md
       - Extensions and integrations: framework/extensions.md
+      - Reward mechanism: framework/reward.md
   - GridWorld:
       - Overview: grid-world/overview.md
       - Environment and configuration: grid-world/environment.md

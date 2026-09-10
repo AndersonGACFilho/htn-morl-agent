@@ -49,8 +49,9 @@ branch fails.
 The RL strategy is an integration point, not a complete MORL implementation.
 It stores the agent reference but deliberately leaves the policy or
 value-function interface unspecified. A subclass must implement ordering; the
-package does not create rewards, preferences, training, or a feasible-method
-mask.
+The RL strategy does not create rewards, preferences, training, or a
+feasible-method mask. Transition-level reward calculation is provided
+separately by [`htn.strategy.reward`](reward.md).
 
 ## Preconditions
 

@@ -70,8 +70,10 @@ The implemented baseline is symbolic. It includes:
 - a runnable GridWorld with BFS navigation, terminal rendering, a key, door,
   obstacles, and a goal.
 
-Planning-time MORL learning, empirical Q correction, preference encoders, and vector rewards are not implemented
-yet. The runtime provides an RL strategy extension point, but its base class
+Planning-time MORL learning, empirical Q correction, preference encoders, and
+RL integration are not implemented; the transition-level single- and
+multi-objective reward functions are available under `htn.strategy.reward`.
+The runtime provides an RL strategy extension point, but its base class
 does not implement a policy or a value-function contract; applications must
 provide a concrete method-ordering implementation.
 

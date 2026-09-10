@@ -3,9 +3,10 @@
 !!! warning "Research proposal — partially scaffolded"
     The runtime now exposes `MethodSelectionStrategy`: DFS preserves domain
     order, while the RL strategy supplies an extension point for application-
-    defined ordering. MORL training, preference encoders, vector rewards,
-    learned-policy masking, and direct single-choice selection are not yet
-    implemented.
+    defined ordering. Transition-level single- and multi-objective reward
+    calculation is implemented under `htn.strategy.reward`; MORL training,
+    preference encoders, learned-policy masking, and direct single-choice
+    selection are not yet implemented.
 
 ## Problem addressed by the architecture
 
@@ -146,10 +147,10 @@ effects. Sensors do not observe them, and planning does not change the real
 environment. The same objective definitions evaluate observed transitions;
 predicted and observed inputs must remain distinguishable.
 
-| Stage | State used | Effects included |
-|---|---|---|
-| Planning | A simulated copy of `WS` | Declared primitive effects and any environmental effects explicitly represented by the planning model. |
-| Execution | Observed `WS`, updated through sensors | Actual action outcomes and environmental effects captured by the observations. |
+| Stage     | State used                             | Effects included                                                                                       |
+|-----------|----------------------------------------|--------------------------------------------------------------------------------------------------------|
+| Planning  | A simulated copy of `WS`               | Declared primitive effects and any environmental effects explicitly represented by the planning model. |
+| Execution | Observed `WS`, updated through sensors | Actual action outcomes and environmental effects captured by the observations.                         |
 
 This gives two distinct quantities:
 
@@ -215,13 +216,13 @@ Even when rewards come directly from the environment, choosing objectives and sc
 During execution, per-step signals are accumulated over the decision interval, as described in the credit-assignment section below.
 Comparing only the initial and final states of the decomposition may lose intermediate events.
 
-| Symbol | Role |
-|---|---|
-| $\Delta WS$ | Observed state changes. |
-| $\mathbf r_t$ | Per-objective feedback. |
+| Symbol                        | Role                                         |
+|-------------------------------|----------------------------------------------|
+| $\Delta WS$                   | Observed state changes.                      |
+| $\mathbf r_t$                 | Per-objective feedback.                      |
 | $\mathbf R_{\mathrm{method}}$ | Accumulated signals for the method decision. |
-| $\mathbf Q$ | Expected return including continuation. |
-| $\mathbf w$ | Preferences used to evaluate vector values. |
+| $\mathbf Q$                   | Expected return including continuation.      |
+| $\mathbf w$                   | Preferences used to evaluate vector values.  |
 
 Weights do not redefine the observed rewards.
 
@@ -267,12 +268,12 @@ singleton or the real environment's advancing clock.
 
 Illustrative domain parameters, not current action implementations:
 
-| Action | Elapsed time | Energy consumed |
-|---|---:|---:|
-| Walk | 1 | 1 |
-| Run | 0.5 | 3 |
-| Safe move | 2 | 1 |
-| Climb | 2 | 4 |
+| Action    | Elapsed time | Energy consumed |
+|-----------|-------------:|----------------:|
+| Walk      |            1 |               1 |
+| Run       |          0.5 |               3 |
+| Safe move |            2 |               1 |
+| Climb     |            2 |               4 |
 
 Time and energy are thus distinct objectives. For safety, a proposed threat
 score uses perceived enemies, their types and distances, and agent health:
@@ -415,18 +416,34 @@ $$
 \mathbf R_M^{real}=\sum_{i=0}^{k_{real}-1}\gamma^i\mathbf r_i^{real}.
 $$
 
+#### Planned update
+
 $$
 \begin{aligned}
-\mathbf Y_{plan}&=\hat{\mathbf R}_M+
-  \gamma^{\hat k}\mathbf Q(\hat x',\hat M';\mathbf w'),\\
-\mathbf Q(x,M;\mathbf w)&\leftarrow\mathbf Q(x,M;\mathbf w)+
-  \alpha_{plan}[\mathbf Y_{plan}-\mathbf Q(x,M;\mathbf w)],\\
-\mathbf Y_{real}&=\mathbf R_M^{real}+
-  \gamma^{k_{real}}\mathbf Q(x'_{real},M'_{real};\mathbf w'_{real}),\\
-\mathbf Q(x,M;\mathbf w)&\leftarrow\mathbf Q(x,M;\mathbf w)+
-  \alpha_{real}[\mathbf Y_{real}-\mathbf Q(x,M;\mathbf w)].
+\mathbf Y_{plan} &= \hat{\mathbf R}_M +
+  \gamma^{\hat k}\mathbf Q(\hat x',\hat M';\mathbf w'),
+\\[0.5em]
+\mathbf Q(x,M;\mathbf w) &\leftarrow \mathbf Q(x,M;\mathbf w) +
+  \alpha_{plan}\left[\mathbf Y_{plan} - \mathbf Q(x,M;\mathbf w)\right].
 \end{aligned}
 $$
+
+#### Empirical correction
+
+$$
+\begin{aligned}
+\mathbf Y_{real} &= \mathbf R_M^{real} +
+  \gamma^{k_{real}}\mathbf Q(x'_{real},M'_{real};\mathbf w'_{real}),
+\\[0.5em]
+\mathbf Q(x,M;\mathbf w) &\leftarrow \mathbf Q(x,M;\mathbf w) +
+  \alpha_{real}\left[\mathbf Y_{real} - \mathbf Q(x,M;\mathbf w)\right].
+\end{aligned}
+$$
+
+The planned update uses model-generated primitive transitions; the empirical
+correction uses the corresponding observed interval after execution. For a
+terminal interval, the bootstrap term is zero. The two updates are linked by
+decision identity and provenance, not treated as two independent executions.
 
 For each target, choose its continuation method from the corresponding HTN
 applicable set using $\arg\max_{M'}\mathbf w'^{\mathsf T}\mathbf Q(x',M';\mathbf w')$.
@@ -457,7 +474,9 @@ comparison separately from a matched completed interval. It does not capture
 all bootstrap or transition error. Two updates are not two independent real
 executions. Choosing $\alpha_{real}>\alpha_{plan}$ is an experimental option,
 not a guarantee against model bias: update counts, model accuracy, and sampling
-also matter. See the [proposed interfaces](../framework/extensions.md).
+also matter.
+
+See the [proposed interfaces](../framework/extensions.md).
 
 ## Current strategy interface and proposed MORL integration
 

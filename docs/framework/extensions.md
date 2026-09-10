@@ -55,9 +55,13 @@ It makes no assumptions about graphs, grids, or algorithms. An integration can p
 6. Decompose goals into `CompoundTask`/`Method`.
 7. Assemble `Domain`, `Planner`, `Agent`, `SensorSystem`, and the tick loop.
 
-## Proposed reward and experience contracts
+## Reward and experience contracts
 
-The following pseudocode describes research interfaces; these classes are **not implemented APIs**. The framework would define reward composition and experience records, while each domain supplies objective semantics. Preferences belong to the MORL strategy, not to the reward function.
+The transition-level reward classes are implemented in
+[`htn.strategy.reward`](reward.md). They define reward composition while each
+domain supplies the semantics of its objectives. Preferences belong to the
+MORL/Q-value layer, not to the reward function: `calculate` returns the
+immediate `r` used later with discount factors and preference weights.
 
 ```python
 class RewardFunction:
@@ -97,6 +101,11 @@ class ExecutedTransition:
     actual_reward: Vector  # accumulated observed method return
     actual_duration: float
 ```
+
+The `RewardObjective` and `RewardFunction` portions of the pseudocode above
+summarize the implemented reward contracts. `EpisodeClock`,
+`PlannedTransition`, and `ExecutedTransition` remain proposed integration
+contracts and are not currently provided by the package.
 
 These signatures assume the state snapshots expose the quantities needed by the objectives, including elapsed episode time and cumulative energy consumption. A change in state is evidence for reward calculation, not automatically the reward itself. The clock must be per episode, not a global singleton; hypothetical planning clocks advance independently of the live episode clock.
 

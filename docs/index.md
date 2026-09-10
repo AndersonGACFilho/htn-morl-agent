@@ -30,11 +30,14 @@ The [proposed HTN–MORL architecture](architecture/symbolic-morl.md) adds vecto
 value learning during symbolic planning and empirical correction after real
 execution. Sensors supply the initial observed state; later planning states are
 hypothetical copies advanced by primitive effects. The initial proposed
-objectives are time, energy consumption, and safety exposure. These learning
-features are not implemented in the current symbolic baseline.
+objectives are time, energy consumption, and safety exposure. The reward
+infrastructure is implemented, but concrete domain objectives, MORL learning,
+preference conditioning, and RL-based method selection are not implemented in
+the current symbolic baseline.
 
-See the [proposed reward contracts](framework/extensions.md#proposed-reward-and-experience-contracts)
-and [GridWorld progression](grid-world/overview.md#proposed-experimental-progression).
+See the [reward contracts](framework/reward.md) and the [experience
+contracts](framework/extensions.md#reward-and-experience-contracts), and read
+about [GridWorld progression](grid-world/overview.md#proposed-experimental-progression).
 
 ## Installation and prerequisites
 
