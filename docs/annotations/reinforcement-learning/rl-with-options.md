@@ -27,7 +27,7 @@ The project does not turn every HTN method into a learned Option. The correspond
 | Decomposition completion or replanning | Termination $\beta$          | Both return control to the high level.                | HTN termination follows task semantics and runtime validity, not necessarily a stochastic termination model.  |
 | Symbolic effects and observed rewards  | Option outcome               | Both describe consequences of the high-level choice.  | HTN effects are planning predictions; environment rewards are empirical feedback.                             |
 
-The distinction matters: a method should not be called an Option merely because it is hierarchical. The HTN method remains an explicit, designer-authored decomposition with symbolic validity guarantees.
+The distinction matters: a method should not be called an Option merely because it is hierarchical. The HTN method remains an explicit, designer-authored decomposition checked against the symbolic model. Local applicability guarantees neither successful full decomposition nor success in the real environment.
 
 ## Call-and-return interpretation
 
@@ -37,18 +37,24 @@ The proposed MORL-HTN architecture can use a call-and-return-like execution cycl
 1. HTN identifies the current CompoundTask.
 2. HTN filters methods whose preconditions do not hold.
 3. MORL selects one remaining method.
-4. HTN decomposes it and the runtime executes its primitive tasks.
-5. Control returns when another method decision is needed, decomposition completes,
-   replanning occurs, or the episode ends.
+4. HTN simulates the primitive span and evaluates predicted rewards during planning.
+5. Execution supplies the corresponding observed primitive trace.
+6. The chosen interval ends at method completion or a recorded interruption.
 ```
 
-The interval from step 3 to step 5 is the correct unit for credit assignment. If primitive rewards are $\mathbf{r}_t$ through $\mathbf{r}_{t+k-1}$, the method-selection return is:
+This is the method-completion interpretation of credit assignment. The next
+nested child selection does not itself complete the parent method. A protocol
+using successive decision points instead must define its own continuation
+context. If primitive rewards are $\mathbf{r}_t$ through $\mathbf{r}_{t+k-1}$,
+the method-selection return is:
 
 $$
 \mathbf{R}_{\mathrm{method}} = \sum_{i=0}^{k-1}\gamma^i\mathbf{r}_{t+i}
 $$
 
-Here, $\mathbf{R}_{\mathrm{method}}$ is the vector return assigned to the selected HTN method, $\mathbf{r}_{t+i}$ is the primitive-step reward vector at offset $i$, $k$ is the method's realized duration, and $\gamma \in [0,1]$ discounts delayed outcomes.
+Here, $\mathbf{R}_{\mathrm{method}}$ is the vector return assigned to the selected HTN method, $\mathbf{r}_{t+i}$ is the primitive-step reward vector at offset $i$, $k$ counts primitive transitions, and $\gamma \in [0,1]$ discounts delayed outcomes. This expression assumes a unit duration per transition. With elapsed-time discounting, use $\sum_{i=0}^{k-1}\gamma^{u_i}\mathbf r_i$, where $u_i$ is elapsed time before transition $i$, and bootstrap with $\gamma^{\tau}$ for total elapsed duration $\tau$. Predicted and actual traces have their own rewards, end states, and durations.
+
+In the proposed learner, this same credit interval is first evaluated through symbolic simulation during planning, then linked to its observed execution for empirical correction. Nested methods need explicit interval bookkeeping: a parent may aggregate the primitive trace, but must not also add child returns covering those same rewards. Interruptions and returned plan prefixes are partial evidence, not completed-method outcomes. The current runtime does not implement this learning bookkeeping.
 
 For MORL, every term is a reward vector. A preference-conditioned utility is applied only when comparing valid method choices; it must not weaken the HTN precondition mask.
 

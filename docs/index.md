@@ -24,6 +24,18 @@ flowchart LR
     S -->|update event| A
 ```
 
+## Research direction
+
+The [proposed HTN–MORL architecture](architecture/symbolic-morl.md) adds vector
+value learning during symbolic planning and empirical correction after real
+execution. Sensors supply the initial observed state; later planning states are
+hypothetical copies advanced by primitive effects. The initial proposed
+objectives are time, energy consumption, and safety exposure. These learning
+features are not implemented in the current symbolic baseline.
+
+See the [proposed reward contracts](framework/extensions.md#proposed-reward-and-experience-contracts)
+and [GridWorld progression](grid-world/overview.md#proposed-experimental-progression).
+
 ## Installation and prerequisites
 
 The project requires Python 3.12 or later. With `uv`, install the dependencies already declared by the project:
@@ -35,7 +47,7 @@ uv sync
 To generate this documentation locally, install the theme and generator (for example, in the development environment):
 
 ```bash
-uv add --group docs mkdocs-material
+uv sync --group docs
 uv run mkdocs serve
 ```
 

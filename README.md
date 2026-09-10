@@ -16,7 +16,8 @@ Research prototype for symbolic Game AI and adaptive hierarchical planning. The
 repository currently provides a runnable Hierarchical Task Network (HTN)
 framework and a GridWorld example. It also documents the proposed research
 architecture that will use Multi-Objective Reinforcement Learning (MORL) to
-select among valid HTN methods at planning time.
+select among applicable HTN methods, learn from symbolic transitions during
+planning, and correct predicted values using real execution experience.
 
 ## Research direction
 
@@ -24,12 +25,13 @@ The central research question is how MORL can select the most appropriate
 decomposition method when an HTN has more than one semantically valid option.
 The responsibilities are deliberately separated:
 
-| Component          | Responsibility                                                                                |
-|--------------------|-----------------------------------------------------------------------------------------------|
-| HTN                | Defines tasks, methods, preconditions, effects, and hard constraints.                         |
-| Preference encoder | Produces the current preference vector $\mathbf{w}_t$ from goal, state, profile, and context. |
-| MORL               | Evaluates only HTN-feasible methods and selects the best trade-off under $\mathbf{w}_t$.      |
-| Runtime            | Executes primitive tasks, updates the environment, and records outcomes.                      |
+| Component          | Responsibility                                                                                                |
+|--------------------|---------------------------------------------------------------------------------------------------------------|
+| HTN                | Defines tasks, methods, preconditions, effects, and hard constraints.                                         |
+| Preference encoder | Produces the current preference vector $\mathbf{w}_t$ from goal, state, profile, and context.                 |
+| MORL               | Evaluates only HTN-feasible methods and selects the best trade-off under $\mathbf{w}_t$.                      |
+| Runtime            | Executes primitive tasks, observes outcomes through sensors, and records empirical experience for correction. |
+| Learning           | Updates vector Q from predicted planning experience and subsequently from observed execution.                 |
 
 The preference encoder is an experimental and replaceable component. Fixed
 profiles and explicit rules are the baselines; a relational graph inspired by
@@ -39,7 +41,8 @@ second planner in the target architecture.
 
 ```mermaid
 flowchart LR
-    S[Symbolic state] --> H[HTN filters applicable methods]
+    S[Sensors: observed state] --> CP[Copy into hypothetical<br/>planning state]
+    CP --> H[HTN filters applicable methods]
     D[HTN domain] --> H
     H --> M[Feasible methods]
     G[Goal, context, profile] --> E[Preference encoder]
@@ -47,8 +50,11 @@ flowchart LR
     M --> R[MORL selects one method]
     W --> R
     R --> P[HTN decomposes only M*]
-    P --> X[Primitive-task execution]
-    X --> O[Vector reward and new state]
+    P --> L[Simulate primitive effects<br/>and update vector Q]
+    L --> X[Execute primitive plan]
+    X --> O[Record real rewards<br/>and observations]
+    O --> C[Empirical Q correction<br/>at next planning]
+    C --> S
 ```
 
 ## Current implementation
@@ -64,22 +70,23 @@ The implemented baseline is symbolic. It includes:
 - a runnable GridWorld with BFS navigation, terminal rendering, a key, door,
   obstacles, and a goal.
 
-MORL training, preference encoders, and vector rewards are not implemented
+Planning-time MORL learning, empirical Q correction, preference encoders, and vector rewards are not implemented
 yet. The runtime provides an RL strategy extension point, but its base class
 does not implement a policy or a value-function contract; applications must
 provide a concrete method-ordering implementation.
 
 ### Development status
 
-| Area                                           | Status    | Notes                                                                                     |
-|------------------------------------------------|-----------|-------------------------------------------------------------------------------------------|
-| HTN domain, planning, and backtracking         | Available | The planner finds a valid primitive-task plan from symbolic state.                        |
-| Method-selection strategies                    | Available | DFS and heuristic strategies are executable; the RL strategy is an extension point.      |
-| Sensors, agent tick loop, and replanning       | Available | State observations update the agent; it validates the remaining plan before replanning.   |
-| GridWorld, BFS navigation, and rendering       | Available | The executable example includes keys, doors, obstacles, and a goal.                       |
-| Vector rewards and multi-objective environment | Planned   | Required before MORL experiments.                                                         |
-| MORL direct method selection with an HTN validity mask | Planned | Requires preference-conditioned training, a validity mask, and single-choice fallback. |
-| Preference encoders                            | Planned   | Fixed profiles and rules precede relational-graph and conditional deep-learning variants. |
+| Area                                                   | Status     | Notes                                                                                      |
+|--------------------------------------------------------|------------|--------------------------------------------------------------------------------------------|
+| HTN domain, planning, and backtracking                 | Available  | The planner finds a valid primitive-task plan from symbolic state.                         |
+| Method-selection strategies                            | Available  | DFS and heuristic strategies are executable; the RL strategy is an extension point.        |
+| Sensors, agent tick loop, and replanning               | Available  | State observations update the agent; it validates the remaining plan before replanning.    |
+| GridWorld, BFS navigation, and rendering               | Available  | The executable example includes keys, doors, obstacles, and a goal.                        |
+| Vector rewards and multi-objective environment         | Planned    | Initial objectives: time, energy consumption, and safety exposure.                         |
+| Planning learning and empirical correction             | Planned    | Linked predicted and executed method intervals; optional pretraining.                      |
+| MORL direct method selection with an HTN validity mask | Planned    | Requires preference-conditioned training, a validity mask, and single-choice fallback.     |
+| Preference encoders                                    | Planned    | Fixed profiles and rules precede relational-graph and conditional deep-learning variants.  |
 
 ## GridWorld example
 
@@ -99,7 +106,7 @@ provide a concrete method-ordering implementation.
       rendered tick sequence.
     </td>
     <td valign="middle" align="center" width="50%">
-      <img alt="GridWorld HTN episode: collect the key, open the door, and reach the goal" src="src/htn/_examples/grid_world/gif/width=10%20height=10%20has_key=True%20door_open=True.gif">
+      <img alt="GridWorld HTN episode: collect the key, open the door, and reach the goal" src="assets/gridworld_bfs.gif">
     </td>
   </tr>
 </table>
@@ -151,8 +158,9 @@ the repository root, compile it with:
 latexmk -pdf -interaction=nonstopmode -halt-on-error -outdir=docs/latex/build docs/latex/main.tex
 ```
 
-See the [LaTeX README](docs/latex/README.md) for commands when working from
-inside that directory, Biber usage, and cleanup.
+The entry point is [main.tex](docs/latex/main.tex). LaTeX sources and generated
+artifacts are currently ignored by Git; local documentation updates do not
+change that versioning policy.
 
 ## Repository layout
 

@@ -3,7 +3,7 @@
 Multi-Objective Reinforcement Learning studies sequential decisions with several objectives that may conflict.
 The environment provides a **reward vector** instead of a single scalar reward.
 
-This page introduces the general concepts. The project's HTN integration, state-delta reward design, and runtime decisions are described in the [symbolic MORL architecture](../../architecture/symbolic-morl.md).
+This page introduces the general concepts. The project's HTN integration, transition-based reward interpretation, and proposed planning updates with empirical correction are described in the [symbolic MORL architecture](../../architecture/symbolic-morl.md).
 
 ## Vector rewards
 
@@ -25,10 +25,10 @@ Signs and scales must be defined consistently: a larger numerical component can 
 
 ## Rewards, returns, and values
 
-| Concept | Meaning |
-|---|---|
-| Reward $\mathbf r_t$ | Feedback for one interaction step. |
-| Return $\mathbf G_t$ | Accumulation of rewards over time. |
+| Concept                    | Meaning                                                                  |
+|----------------------------|--------------------------------------------------------------------------|
+| Reward $\mathbf r_t$       | Feedback for one interaction step.                                       |
+| Return $\mathbf G_t$       | Accumulation of rewards over time.                                       |
 | Value $\mathbf Q^\pi(s,a)$ | Expected return after action $a$ in state $s$, followed by policy $\pi$. |
 
 The discounted vector return is:
@@ -58,12 +58,12 @@ $$
 
 ### Example
 
-For the order `[health, energy, time]`:
+For the project's proposed order `[time, energy, safety]`:
 
-| Weights | Interpretation |
-|---|---|
-| `[0.7, 0.2, 0.1]` | Give health the largest weight while retaining the other objectives. |
-| `[1, 0, 0]` | Consider health alone: a one-hot vector. |
+| Weights           | Interpretation                                                                |
+|-------------------|-------------------------------------------------------------------------------|
+| `[0.7, 0.2, 0.1]` | Give time efficiency the largest weight while retaining the other objectives. |
+| `[1, 0, 0]`       | Consider time efficiency alone: a one-hot vector.                             |
 
 For $\mathbf r=[-2,-3,-1]^{\mathsf T}$:
 
@@ -99,6 +99,12 @@ $$
 
 The dependence can arise because the continuation policy changes with $\mathbf w$, producing different trajectories and expected vector returns.
 The weights need not change the underlying reward components.
+
+### Objective reward and shaping
+
+The proposed reward function interprets a transition as $\mathbf r=R(S,S')$; a raw state delta is not automatically a reward. Time, energy consumption, and safety are objective rewards when they are the outcomes being optimized. An extra incentive for approaching a key solely to accelerate learning is reward shaping. Potential-based shaping uses $F(s,s')=\gamma\Phi(s')-\Phi(s)$ for unit-step transitions; elapsed-duration discounting requires the corresponding duration in the exponent. Shaping and objective returns should be logged separately.
+
+The planned method learner uses hypothetical transitions from the HTN effects and later corrects values with linked observed experience. The shorthand $\mathbf Q(S,M)$ suppresses compound-task and continuation-policy/preference context; it must not erase that context from a learner's representation.
 
 ## Pareto trade-offs and coverage
 

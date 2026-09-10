@@ -4,15 +4,15 @@ The `htn` module separates three responsibilities: the **Planner** builds a symb
 
 ## Components
 
-| Layer              | Responsibility                      | Main implementations               |
-|--------------------|-------------------------------------|------------------------------------|
-| Symbolic state     | Stores named facts                  | `WorldState`                       |
-| Domain             | Declares high-level tasks           | `Domain`, `CompoundTask`, `Method` |
-| Executable leaves  | Connect conditions and effects to code | `PrimitiveTask`, `Action`       |
+| Layer              | Responsibility                                                   | Main implementations                 |
+|--------------------|------------------------------------------------------------------|--------------------------------------|
+| Symbolic state     | Stores named facts                                               | `WorldState`                         |
+| Domain             | Declares high-level tasks                                        | `Domain`, `CompoundTask`, `Method`   |
+| Executable leaves  | Connect conditions and effects to code                           | `PrimitiveTask`, `Action`            |
 | Planning           | Orders feasible methods, decomposes tasks, and simulates effects | `Planner`, `MethodSelectionStrategy` |
-| Execution          | Keeps the plan alive and executes ticks | `Agent`                        |
-| Observation        | Converts the concrete world into facts | `Sensor`, `SensorSystem`        |
-| Integration        | Provides execution context          | `World`, `GymWorld`, `Pathfinder`  |
+| Execution          | Keeps the plan alive and executes ticks                          | `Agent`                              |
+| Observation        | Converts the concrete world into facts                           | `Sensor`, `SensorSystem`             |
+| Integration        | Provides execution context                                       | `World`, `GymWorld`, `Pathfinder`    |
 
 ## Control cycle
 
@@ -40,6 +40,12 @@ sequenceDiagram
 ```
 
 The planner **does not execute actions** and does not modify the live `WorldState`. It applies effects only to copies. After an action changes the concrete environment, a sensor updates the symbolic state in the next cycle.
+
+### Proposed learning cycle
+
+The research extension adds **prediction → planning learning → execution → empirical correction** to this runtime. Only the initial planning state comes from sensors; subsequent hypothetical states come from primitive-task symbolic effects. A domain reward function evaluates these predicted transitions, and method-level vector returns support a planning update of Q. Execution records the corresponding observed outcomes for correction at the next planning boundary, once the next applicable methods are known. Prior training remains an optional complement.
+
+This learning cycle is proposed, not provided by the current strategy hook. Its target is a complete primitive plan; the current planner can return a successfully planned prefix when a later root task fails. Local method applicability also does not guarantee a complete decomposition or successful execution in the real environment. See the [symbolic MORL architecture](../architecture/symbolic-morl.md) and [proposed extension contracts](extensions.md#proposed-reward-and-experience-contracts).
 
 ## Code organization
 

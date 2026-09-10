@@ -54,3 +54,54 @@ It makes no assumptions about graphs, grids, or algorithms. An integration can p
 5. Model `PrimitiveTask`s with coherent symbolic preconditions and effects.
 6. Decompose goals into `CompoundTask`/`Method`.
 7. Assemble `Domain`, `Planner`, `Agent`, `SensorSystem`, and the tick loop.
+
+## Proposed reward and experience contracts
+
+The following pseudocode describes research interfaces; these classes are **not implemented APIs**. The framework would define reward composition and experience records, while each domain supplies objective semantics. Preferences belong to the MORL strategy, not to the reward function.
+
+```python
+class RewardFunction:
+    def calculate(self, previous_state, current_state) -> Vector: ...
+
+class RewardObjective:
+    def calculate(self, previous_state, current_state) -> float: ...
+
+class MultiObjectiveRewardFunction(RewardFunction):
+    def __init__(self, objectives):
+        self.objectives = objectives
+
+    def calculate(self, previous_state, current_state):
+        return vector([
+            objective.calculate(previous_state, current_state)
+            for objective in self.objectives
+        ])
+
+class EpisodeClock:
+    elapsed_time: float  # owned and reset by one environment/episode
+
+class PlannedTransition:
+    decision_id: object
+    task: object
+    state: object
+    method: object
+    predicted_next_state: object
+    predicted_reward: Vector  # accumulated method return
+    predicted_duration: float
+
+class ExecutedTransition:
+    decision_id: object  # links to the predicted method decision
+    task: object
+    state: object
+    method: object
+    actual_next_state: object
+    actual_reward: Vector  # accumulated observed method return
+    actual_duration: float
+```
+
+These signatures assume the state snapshots expose the quantities needed by the objectives, including elapsed episode time and cumulative energy consumption. A change in state is evidence for reward calculation, not automatically the reward itself. The clock must be per episode, not a global singleton; hypothetical planning clocks advance independently of the live episode clock.
+
+Experience records must retain the decision's preference/policy context, termination or interruption status, and primitive trace alongside the illustrated fields. Pair records by decision identity rather than by state equality. Planned branches that are abandoned have no executed counterpart, and an interrupted prefix must not be reported as a completed method. A pending empirical update is resolved at the next planning boundary using its observed end state, actual duration, and next feasible methods; terminal returns need no bootstrap.
+
+Accumulate primitive rewards once within each method's defined interval. A parent return may cover the same primitive trace as a child, but must not add the child's accumulated return to those same primitive rewards. Likewise, predicted and observed records are linked model evidence and empirical correction, not two equivalent independent samples. Different learning rates are an experimental choice, not a guarantee of removing model bias.
+
+When moving from GridWorld to Resource Delivery GridWorld and then Crafter, replace the environment, sensors, actions, HTN domain, and reward implementations. The intended reusable layer is the planner, method-selection strategy, MORL learner, Q representation, preference handling, and these reward abstractions.

@@ -53,6 +53,12 @@ enemyVisible = true, hasAmmo = true, ShootEnemy
 
 Later, it can replay that modeled transition to update its Q-values without another real encounter.
 
+## Connection to the proposed HTN learner
+
+Here the transition model is supplied by primitive-task symbolic effects. Sensors establish $S^{obs}$, the planner copies it into $\hat S_0$, and subsequent states $\hat S_{k+1}=T_{HTN}(\hat S_k,a_k)$ are hypothetical. They are not new sensor observations and do not change the environment. Proposed method-level vector Q updates occur during decomposition using predicted rewards; execution then records empirical outcomes for correction at the next planning boundary. This is model-based or model-assisted learning, rather than purely model-free learning, but it is not an implementation of Dyna-Q's learned-model replay loop.
+
+Separate $\alpha_{plan}$ and $\alpha_{real}$ control the model and empirical updates. Testing a larger empirical rate is reasonable; it does not by itself eliminate model bias or make paired predicted and executed experience independent. Prior training can initialize values, while learning during planning and subsequent correction remain the proposed main cycle. See the [architecture](../../architecture/symbolic-morl.md) for the full targets and duration conventions.
+
 ## Trade-offs
 
 | Benefit                           | Cost                                            |

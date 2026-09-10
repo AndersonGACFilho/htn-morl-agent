@@ -18,6 +18,27 @@
 | Lazy replanning           | Rebuilding only when no plan exists or validation of the remaining plan fails.                         |
 | BFS                       | Breadth-first search; in GridWorld, it finds routes with the fewest moves.                             |
 
+## Proposed learning concepts
+
+These terms describe the research extension rather than additional implemented runtime APIs.
+
+| Term                                   | Meaning in the proposal                                                                                 |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------|
+| Observed state                         | Sensor-produced symbolic snapshot of the concrete environment.                                          |
+| Hypothetical state                     | A planning copy advanced by symbolic effects, not by new observations.                                  |
+| Reward vector                          | Objective consequences of one transition, initially ordered `[time, energy, safety]`.                   |
+| Method return                          | Discounted primitive rewards accumulated over a defined method interval.                                |
+| Vector Q                               | Expected return of a method choice in its state, task, and continuation-policy/preference context.      |
+| Preference vector                      | Weights used by the strategy to compare objective values; not an input to objective reward calculation. |
+| Planning update                        | Model-assisted Q update using predicted return, next state, and duration.                               |
+| Empirical correction                   | Q update using linked execution evidence, pending until the next decision boundary when needed.         |
+| PlannedTransition / ExecutedTransition | Proposed paired records linking prediction and observation by method decision identity.                 |
+| Episode clock                          | Time owned by one environment episode; distinct from action count and copied for planning.              |
+| Objective reward                       | A signal measuring an outcome the task actually seeks to optimize.                                      |
+| Reward shaping                         | An additional designed learning incentive, distinct from the measured objective return.                 |
+
+See [extension contracts](../framework/extensions.md#proposed-reward-and-experience-contracts) and the [symbolic MORL architecture](../architecture/symbolic-morl.md).
+
 ## Module reference
 
 | Path                       | Contents                              |

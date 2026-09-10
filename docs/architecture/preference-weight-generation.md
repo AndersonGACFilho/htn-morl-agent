@@ -4,6 +4,8 @@
 
 The research focus is MORL-guided HTN method selection at planning time. A preference vector $\mathbf{w}_t$ is an input that expresses the current trade-off among objectives. It may be supplied directly by the game or AI director, or produced by a **replaceable experimental component**; it is not a separate planner and not the central contribution.
 
+In the proposed prediction–learning–execution–correction cycle, the reward function reports objective consequences without receiving $\mathbf w_t$. The strategy uses weights to compare vector Q estimates. Those estimates still depend on the compound-task context and continuation policy, which may itself depend on preferences; separating rewards from weights does not make Q universally preference-independent. The initial GridWorld objective order is `[time, energy, safety]` and must be shared by weights, rewards, values, and logs.
+
 At each HTN decision point, a preference source supplies a normalized vector:
 
 $$
