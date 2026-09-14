@@ -1,16 +1,16 @@
 [project]
-name = "HTN-GOAP-MORL-Planner"
+name = "HTN-MORL-Planner"
 version = "0.1.0"
 description = """
 A research prototype for a hybrid agent architecture that combines
-Hierarchical Task Network planning, GOAP-inspired tactical reasoning,
-and multi-objective reinforcement learning.
+Hierarchical Task Network planning with multi-objective reinforcement
+learning.
 
-The system separates decision-making into three layers: HTN defines
-long-term goals and decomposes them into subtasks, the GOAP-inspired
-layer configures tactical priorities and intentions, and the MORL layer
-selects one symbolically valid HTN decomposition method according to
-multiple learned objectives.
+The architecture separates four responsibilities: HTN defines tasks,
+methods, preconditions, and effects; a preference source supplies the
+current objective weights; a MORL policy selects one symbolically valid
+decomposition method under those weights; and conventional controllers
+execute the resulting primitive tasks.
 
 The goal is to investigate how symbolic planning and reinforcement
 learning can be integrated to produce agents with interpretable planning,
@@ -31,15 +31,23 @@ dependencies = [
     "mypy",
     "pre-commit",
     "rich>=15.0.0",
-    "cairosvg>=2.9.0",
-    "svglib>=2.1.0",
-    "reportlab>=5.0.0",
     "pillow>=12.3.0",
     "resvg-py>=0.3.4",
     "latexmk>=0.0.2",
     "mkdocs>=1.6.1",
     "ipykernel>=7.3.0",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/htn"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 target-version = "py312"

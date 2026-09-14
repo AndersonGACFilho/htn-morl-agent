@@ -90,28 +90,85 @@ provide a concrete method-ordering implementation.
 | MORL direct method selection with an HTN validity mask | Planned    | Requires preference-conditioned training, a validity mask, and single-choice fallback.     |
 | Preference encoders                                    | Planned    | Fixed profiles and rules precede relational-graph and conditional deep-learning variants.  |
 
-## GridWorld example
+## Examples
+
+Two examples share one GridWorld core. They differ only where the scenarios
+genuinely differ — domain, actions, sensors, and composition root — so the
+planner, the renderer, and the environment machinery are written once.
+
+### Single-objective: key, door, goal
 
 <table>
   <tr>
-    <td valign="top" valign="middle">
-      The included example demonstrates the current runtime: sensors translate
-      the environment into symbolic facts, the HTN planner produces a valid
-      plan, and the agent executes one primitive action per tick. In the shown
-      episode, a closed door requires the agent to collect the key, open the
-      door, and then reach the goal.<br><br>
-      The default composition root uses a reproducible 10×10 configuration with
-      seed <code>42</code>, two fixed obstacles, ten random obstacles, and a
-      closed door. The HTN domain first tries methods whose preconditions are
-      satisfied; if a decomposition branch fails, it backtracks to the next
-      valid method. The example GIF is generated after each run from the
-      rendered tick sequence.
+    <td valign="middle">
+      This example shows the implemented runtime end to end. Each tick, sensors
+      translate the concrete environment into symbolic facts, the agent
+      validates the plan it is holding and rebuilds it only when that plan no
+      longer applies, and exactly one primitive action executes. A closed door
+      makes the decomposition non-trivial: the agent must collect the key, open
+      the door, and only then reach the goal.<br><br>
+      The composition root uses a reproducible 10×10 layout with seed
+      <code>42</code>, two fixed obstacles, ten random ones, and a closed door.
+      Entity positions are resolved at <code>reset()</code>, so the same seed
+      always yields the same episode. The planner filters the methods whose
+      preconditions hold, explores them in declaration order, and backtracks to
+      the next one when a decomposition branch fails. Navigation is a separate
+      concern: a BFS route is recomputed every tick, which keeps movement
+      reactive at the cost of repeating the search.<br><br>
+      The right-hand panels expose what the planner is doing. The plan panel
+      tracks the executing task and the queue behind it; the methods panel marks
+      each method applicable or rejected and names the precondition that failed.
+      Frames are exported per tick and assembled into the GIF after the run.
     </td>
-    <td valign="middle" align="center" width="50%">
-      <img alt="GridWorld HTN episode: collect the key, open the door, and reach the goal" src="assets/gridworld_bfs.gif">
+    <td valign="middle" align="center" width="46%">
+      <img alt="Single-objective GridWorld episode: collect the key, open the door, and reach the goal" src="assets/gridworld_single_objective.gif">
     </td>
   </tr>
 </table>
+
+### Multi-objective: time, energy, and safety
+
+<table>
+  <tr>
+    <td valign="middle">
+      This example keeps the key–door structure and adds the quantities the
+      research measures. The agent carries energy and health, the grid holds
+      hazards, rough terrain, and a recharge tile, and a threat model scores the
+      perceived risk of each tile. Four movement profiles — walk, run, safe
+      move, and climb — separate time from energy: running is twice as fast and
+      three times as expensive, so the two objectives cannot collapse into one.
+      <br><br>
+      Every transition produces the reward vector
+      <code>[time, energy, safety]</code> through the objectives in
+      <code>htn.strategy.reward.objectives</code>. Energy is scored as
+      <em>consumption</em>, not net balance: recharging restores what the agent
+      has without undoing what it spent. Safety uses the risk at the end of the
+      step scaled by its duration, so standing in unchanging danger keeps
+      costing. The objective panel shows the step reward, the episode return,
+      and the space reserved for preference weights.<br><br>
+      The domain offers three competing ways to reach the goal — run directly,
+      move safely, or recharge first — which is the decision point the proposed
+      MORL policy is meant to learn. It does not learn it yet: see the caveat
+      below.
+    </td>
+    <td valign="middle" align="center" width="46%">
+      <img alt="Multi-objective GridWorld episode showing the time, energy and safety reward vector" src="assets/gridworld_multi_objective.gif">
+    </td>
+  </tr>
+</table>
+
+> [!IMPORTANT]
+> **No method selection is learned yet.** Both examples use
+> `DepthFirstSearchStrategy`, so a method wins because it is declared first
+> among the applicable ones, not because of any multi-objective evaluation. The
+> objective panel prints `WᵀQ — (no learner)` for that reason. The reward
+> vector, the competing methods, and the decision traces are the groundwork for
+> that policy, not the policy itself.
+>
+> Route search is also unweighted: BFS ignores cost and risk, so the three
+> methods currently follow the **same route** and differ only in the movement
+> profile used to traverse it. "Safe move" therefore avoids hazard *damage*
+> rather than routing around danger.
 
 ## Quick start
 
@@ -119,13 +176,30 @@ Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```powershell
 uv sync
-$env:PYTHONPATH = "src"
-uv run python -m htn._examples.grid_world.main
+uv run python -m htn._examples.grid_world.single_objective.main
 ```
 
-The example runs the GridWorld HTN agent in the terminal and writes rendered
-artifacts to the example output directories. Set `PYTHONPATH` again in a new
-PowerShell session before running project modules.
+Two examples share one GridWorld core. The single-objective example runs the
+key–door scenario; the multi-objective example adds movement profiles, energy,
+health, and a risk field, and reports the `[time, energy, safety]` reward
+vector:
+
+```powershell
+uv run python -m htn._examples.grid_world.multi_objective.main
+```
+
+Both accept `--theme dissertation|eramia` to match the palette of either
+manuscript, `--seed` to change the layout, and `--no-gif` to skip the animation.
+The multi-objective example also accepts `--display-weights TIME ENERGY SAFETY`,
+which fills the preference row of the objective panel for a figure; no learner
+consumes it and no method selection depends on it.
+
+Rendered frames and the assembled GIF are written to
+`out/grid_world/<variant>/`. Run the test suite with:
+
+```powershell
+uv run pytest
+```
 
 ## Documentation
 

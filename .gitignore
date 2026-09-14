@@ -284,9 +284,8 @@ project_context.txt
 */latex/*
 
 # Images
-/src/htn/_examples/grid_world/images/
-/src/htn/_examples/grid_world/gif/
-/src/htn/_examples/grid_world_multiobjective/gif/
-/src/htn/_examples/grid_world_multiobjective/images/
+/src/htn/_examples/**/images/
+/src/htn/_examples/**/gif/
+/out/
 /tmp/
 /.claude/
