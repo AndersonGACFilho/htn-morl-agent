@@ -37,7 +37,7 @@ These terms describe the research extension rather than additional implemented r
 | Objective reward                       | A signal measuring an outcome the task actually seeks to optimize.                                      |
 | Reward shaping                         | An additional designed learning incentive, distinct from the measured objective return.                 |
 
-See [extension contracts](../framework/extensions.md#proposed-reward-and-experience-contracts) and the [symbolic MORL architecture](../architecture/symbolic-morl.md).
+See [extension contracts](../framework/extensions.md#reward-and-experience-contracts) and the [symbolic MORL architecture](../architecture/symbolic-morl.md).
 
 ## Module reference
 

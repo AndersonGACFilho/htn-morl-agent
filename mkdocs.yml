@@ -1,7 +1,7 @@
-site_name: HTN GridWorld
+site_name: HTN-MORL-Planner
 site_description: Documentation for the HTN framework and GridWorld example
 site_url: https://example.invalid/htn-gridworld/
-repo_name: HTN-GOAP-MORL-Planner
+repo_name: HTN-MORL-Planner
 
 theme:
   name: material

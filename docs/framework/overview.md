@@ -45,7 +45,7 @@ The planner **does not execute actions** and does not modify the live `WorldStat
 
 The research extension adds **prediction → planning learning → execution → empirical correction** to this runtime. Only the initial planning state comes from sensors; subsequent hypothetical states come from primitive-task symbolic effects. A domain reward function evaluates these predicted transitions, and method-level vector returns support a planning update of Q. Execution records the corresponding observed outcomes for correction at the next planning boundary, once the next applicable methods are known. Prior training remains an optional complement.
 
-This learning cycle is proposed, not provided by the current strategy hook. Its target is a complete primitive plan; the current planner can return a successfully planned prefix when a later root task fails. Local method applicability also does not guarantee a complete decomposition or successful execution in the real environment. See the [symbolic MORL architecture](../architecture/symbolic-morl.md) and [proposed extension contracts](extensions.md#proposed-reward-and-experience-contracts).
+This learning cycle is proposed, not provided by the current strategy hook. Its target is a complete primitive plan; the current planner can return a successfully planned prefix when a later root task fails. Local method applicability also does not guarantee a complete decomposition or successful execution in the real environment. See the [symbolic MORL architecture](../architecture/symbolic-morl.md) and [proposed extension contracts](extensions.md#reward-and-experience-contracts).
 
 ## Code organization
 
