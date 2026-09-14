@@ -70,3 +70,36 @@ The returned path includes the start and goal; if they are equal, the route cont
 
 !!! note "Door and pathfinding"
     The domain decides when to open the door. The blocked-cell configuration supplied to navigation must remain consistent with the door's concrete state so the calculated path is executable.
+
+## Unweighted routing and the heuristic baseline
+
+`RoutePlanner` derives the blocked set from `GridRules` and searches it with
+BFS, which minimizes the **number of steps** and nothing else. Cost and risk do
+not influence the route.
+
+This has a consequence worth stating plainly, because it limits what the
+multi-objective example currently demonstrates: every method that navigates to
+the same target follows the **same route**. `move_safely_to_goal`,
+`walk_to_goal`, and `run_to_goal` differ only in the movement profile used to
+traverse that one route — their time and energy costs differ, and the safe
+profile avoids hazard *damage*, but none of them routes around a dangerous
+region. A method named "safe route" that crosses the same tiles as the direct
+one is therefore safe in a narrower sense than its name suggests.
+
+Making the route itself risk-aware means replacing breadth-first search with a
+weighted search — Dijkstra or A\* over a per-tile cost derived from
+`ThreatRiskModel` — so that a longer route around a threat can outrank a short
+one through it. That is a *declared heuristic over an explicit cost model*, not
+a learned policy, which places it squarely at **Baseline 2 (HTN heurístico)** of
+the evaluation plan rather than in the MORL contribution. The framework already
+accommodates it: `Pathfinder[NodeT, ContextT]` makes no assumption about the
+search algorithm, and `HeuristicBasedSearchStrategy` provides the matching
+lower-is-better ordering hook at the method-selection layer.
+
+Keeping the two layers distinct matters for the experiment. A weighted route
+changes *where the agent walks* for a fixed method; a heuristic or learned
+selector changes *which method is chosen*. Reporting a gain without separating
+them would attribute to method selection an improvement that came from routing.
+
+Neither the weighted pathfinder nor a concrete heuristic strategy is
+implemented; both are recorded here as the next step for the symbolic baseline.

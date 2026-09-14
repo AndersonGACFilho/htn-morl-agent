@@ -34,6 +34,9 @@ These terms describe the research extension rather than additional implemented r
 | Empirical correction                   | Q update using linked execution evidence, pending until the next decision boundary when needed.         |
 | PlannedTransition / ExecutedTransition | Proposed paired records linking prediction and observation by method decision identity.                 |
 | Episode clock                          | Time owned by one environment episode; distinct from action count and copied for planning.              |
+| Decision staleness                     | Gap between the state a method was selected in and the state it actually executes in.                   |
+| Interruption                           | Revisiting a committed method mid-execution when switching is worth more than continuing.               |
+| Switching margin                       | Minimum utility gain required before interrupting; what keeps method choice from oscillating.           |
 | Objective reward                       | A signal measuring an outcome the task actually seeks to optimize.                                      |
 | Reward shaping                         | An additional designed learning incentive, distinct from the measured objective return.                 |
 

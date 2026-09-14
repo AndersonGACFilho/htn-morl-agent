@@ -519,6 +519,75 @@ have not changed, the implementation may reuse the values from the first
 inference, mask the failed method, and take a new `argmax`. A planning update
 that changes Q also invalidates those cached values.
 
+## Decision staleness and value-based interruption
+
+Selecting a method during planning is what makes the rest of this architecture
+possible: a method owns a contiguous span of the primitive plan, which is what
+the semi-MDP credit assignment needs; the predicted update exists only because
+the decomposition is simulated ahead of execution; and one inference per
+decomposition point, rather than per tick, is what the decision-density metric
+is meant to measure. Moving the choice to every execution step would dissolve
+all three.
+
+That placement has a cost, and case 3 above understates it. `recursive_planning`
+consults the selector at every compound task it expands, so a single
+`build_plan` fixes several nested decisions at once, all against the state
+observed at that instant. The decisions taken deepest in the decomposition are
+executed last and are therefore the most stale.
+
+### Symbolic validity does not imply a good trade-off
+
+The runtime revalidates a plan by simulating the preconditions of its remaining
+primitive tasks. That test answers a boolean question — *can these tasks still
+run?* — while the MORL decision answers a graded one — *is this still the best
+trade-off?* A plan can stay valid while becoming a poor choice, and nothing in
+the current trigger notices.
+
+The GridWorld multi-objective example shows this without any exogenous agent.
+The plan is built while energy is plentiful, so a direct, fast, expensive route
+wins. Energy then falls during execution without violating a single
+precondition of the remaining tasks, so no replanning is requested, and the
+agent commits to a route it can no longer afford. The failure is not in the
+selection rule; it is in a termination condition that is blind to the
+objectives the selection optimizes.
+
+### Interruption as the middle ground
+
+The options framework already separates these concerns: termination $\beta$ ends
+control, and *interruption* re-evaluates an option still in progress, switching
+when the expected value of switching exceeds that of continuing
+\[[Sutton, Precup and Singh](../reference/bibliography.md)\]. Applied here, the
+selection stays at planning time and execution gains a value-based trigger. For
+observed state $x'$ and current preference $\mathbf w'$, interrupt when
+
+$$
+\mathbf w'^{\mathsf T}\mathbf Q(x',M'_{\text{best}};\mathbf w')
+-\mathbf w'^{\mathsf T}\mathbf Q(x',M_{\text{current}};\mathbf w')
+>\delta .
+$$
+
+The margin $\delta$ is not a detail. Preferences can change at any moment, and
+re-evaluating without a margin produces the behavioural oscillation already
+identified as a risk; $\delta$ is where commitment periods, switch costs, and
+hysteresis enter, and its value is an experimental choice to declare rather than
+tune silently.
+
+The credit-assignment consequence is already specified. An interrupted decision
+closes on its **truncated** interval and is recorded as partial, exactly as the
+formalization prescribes for a sensor-triggered replan: an interrupted prefix
+must never be reported as a completed method, and its $\boldsymbol\varepsilon$
+must be labelled separately from that of a matched completed interval.
+
+Two quantities are worth reporting on their own. The **interruption rate**
+measures how quickly a planning-time decision goes stale, which is an empirical
+result about the abstraction rather than about the learner. The **latency** of
+the interruption check must be separated from that of selection, since it runs
+far more often.
+
+Interruption is proposed, not implemented. The current runtime replans only on
+symbolic invalidity, and the current examples commit to the plan built at the
+first tick.
+
 ## Experimental questions
 
 ### Main learned baseline: scalar Deep RL
@@ -556,6 +625,13 @@ The evaluation will retain symbolic baselines and distinguish the following effe
 
 Useful metrics include vector return, utility under held-out preferences, task success, invalid-method selection rate, decomposition-fallback rate, adaptation latency, method-switch stability, and normal-path planning-time latency.
 
+Report the **interruption rate** and the latency of the interruption check
+separately from those of selection. The first measures how quickly a
+planning-time decision goes stale, which is evidence about the abstraction
+rather than about the learner; the second runs once per execution step instead
+of once per decomposition point, so folding it into selection latency would hide
+the cost that the decision-density metric exists to expose.
+
 Also report per-objective predicted/real return error, state and duration
 mismatch, interruption rate, and separate planning/empirical update counts and
 wall-clock costs. Normalize components before combining error magnitudes;
@@ -564,11 +640,20 @@ compare ablations under declared interaction and computational budgets.
 ## Technical roadmap
 
 1. **HTN strategy baseline — available:** DFS and heuristic ordering can be instrumented now; the RL ordering hook is ready for a concrete implementation and the same instrumentation.
-2. **Multi-objective environment — future:** define the components of `r` and how each episode records returns.
-3. **HTN–MORL integration — future:** introduce a preference-conditioned, single-choice selector for feasible methods, plus MORL-guided method fallback after decomposition failure.
-4. **Learning — future:** update vector values from symbolic planning experience and correct them from execution; evaluate optional pretraining and separate model/empirical update budgets.
-5. **Preference sources — experimental track:** compare game/director inputs, fixed profiles, rules, relational graphs, and deep learning under the same MORL interface.
-6. **Experimental comparison — future:** compare MORL with the scalar Deep RL baseline based on Bahrami (2025), alongside symbolic baselines and ablations; report plan validity, fallback rate, replanning, vector return, preference adaptation, and decision cost.
+2. **Symbolic cost model — future, part of the heuristic baseline:** replace the
+   unweighted BFS route with a weighted search over an explicit per-tile cost
+   derived from the risk model, so a route can trade length for safety. Until
+   then, methods that navigate to the same target share one route and differ
+   only in movement profile, which makes a "safe route" method avoid hazard
+   damage rather than avoid the hazardous region. This is a declared heuristic
+   over a declared cost model, so it belongs to Baseline 2 and must be reported
+   separately from any learned method selection: routing changes where the agent
+   walks for a fixed method, while selection changes which method runs.
+3. **Multi-objective environment — future:** define the components of `r` and how each episode records returns.
+4. **HTN–MORL integration — future:** introduce a preference-conditioned, single-choice selector for feasible methods, plus MORL-guided method fallback after decomposition failure, and a value-based interruption rule so a committed method can be revisited when the observed state or the preference vector moves far enough to change the trade-off.
+5. **Learning — future:** update vector values from symbolic planning experience and correct them from execution; evaluate optional pretraining and separate model/empirical update budgets.
+6. **Preference sources — experimental track:** compare game/director inputs, fixed profiles, rules, relational graphs, and deep learning under the same MORL interface.
+7. **Experimental comparison — future:** compare MORL with the scalar Deep RL baseline based on Bahrami (2025), alongside symbolic baselines and ablations; report plan validity, fallback rate, replanning, vector return, preference adaptation, and decision cost.
 
 ## Implications for GridWorld
 

@@ -72,12 +72,40 @@ The proposed HTN-MORL architecture differs in three key ways:
 
 HIPO therefore supports the value of interpretable temporal structure, while this project studies how symbolic feasibility and multi-objective preferences constrain a planning-time choice.
 
+## Termination versus interruption
+
+The options framework distinguishes two ways control returns to the high level.
+**Termination** follows $\beta$: the option reaches its own end condition. An
+**interruption** instead cuts an option that is still running, because the
+high-level value of switching now exceeds the value of continuing. Sutton, Precup
+and Singh show that re-evaluating options this way does not make the resulting
+policy worse than committing to them, and it is usually better.
+
+The distinction matters for a method-selection architecture whose decision is
+made once, at planning time. A method chosen in one state executes over many
+steps, during which the state and the preference vector can both move. Without
+an interruption rule, the only way back to the decision is the plan becoming
+invalid — a boolean test that says nothing about whether the choice is still a
+good trade-off.
+
+Interruption has a price that must be paid explicitly:
+
+- **Credit.** An interrupted interval ends where it was cut, not where it was
+  predicted to end. Its return and duration are partial evidence and must be
+  labelled as such, never compared with a completed interval as if matched.
+- **Stability.** Re-evaluating at every opportunity produces method thrashing
+  when preferences drift. A switching margin, a minimum commitment period, or a
+  switch cost is required, and its value belongs to the experimental design.
+- **Cost.** The check runs far more often than selection does, so its latency
+  must be measured separately.
+
 ## Design implications
 
 - Define the initiation condition from `Method.preconditions`, not from a separate learned gate.
 - Keep the HTN feasible-method mask in training and inference.
 - Log the start time, end condition, primitive trace, vector return, and replanning events for each selected method.
-- Do not assume a fixed duration: method execution can be interrupted by failure or replanning.
+- Do not assume a fixed duration: method execution can be interrupted by failure, replanning, or an explicit interruption rule.
+- Distinguish a completed interval from an interrupted one in every record and metric.
 - Evaluate whether longer method intervals improve or worsen credit assignment and adaptation.
 
 See [MORL](morl.md) for the preference-conditioned selection rule and [the symbolic MORL architecture](../../architecture/symbolic-morl.md) for the complete system flow.

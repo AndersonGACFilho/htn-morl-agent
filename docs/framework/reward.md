@@ -11,9 +11,14 @@ single-objective RL and for multi-objective RL (MORL).
 htn.strategy.reward
 ├── RewardObjective
 ├── RewardFunction[T]
-└── functions
-    ├── SingleObjectiveRewardFunction
-    └── MultiObjectiveRewardFunction
+├── functions
+│   ├── SingleObjectiveRewardFunction
+│   └── MultiObjectiveRewardFunction
+└── objectives
+    ├── TimeObjective
+    ├── EnergyConsumptionObjective
+    ├── NetEnergyBalanceObjective
+    └── RiskExposureObjective
 ```
 
 The public imports are available from the reward package:
@@ -48,6 +53,30 @@ class EnergyObjective(RewardObjective):
 An objective can reward improvement or penalize deterioration. The direction,
 scale, normalization, and treatment of missing facts are domain decisions and
 are not imposed by the framework.
+
+## Provided objectives
+
+Four concrete objectives live in `htn.strategy.reward.objectives`. Each reads
+the facts it needs by a configurable key and raises `ValueError` naming a
+missing or non-numeric fact, because a silently zero objective is
+indistinguishable from a genuinely neutral transition.
+
+| Objective                     | Reward                    | Reads                        |
+|-------------------------------|---------------------------|------------------------------|
+| `TimeObjective`               | $-\Delta t$               | `elapsed_time`               |
+| `EnergyConsumptionObjective`  | $-c_E$, with $c_E \geq 0$ | `energy_consumed`            |
+| `NetEnergyBalanceObjective`   | $E_{t+1}-E_t$             | `energy`                     |
+| `RiskExposureObjective`       | $-Risk(S')\,\Delta t$     | `risk`, `elapsed_time`       |
+
+`EnergyConsumptionObjective` reads a cumulative consumption counter, not the
+available energy: recharging raises what the agent has without undoing what it
+spent. It raises if that counter ever decreases, so recovery can never be
+recorded as negative consumption. `NetEnergyBalanceObjective` is the explicitly
+named alternative for when the balance really is the objective.
+
+`RiskExposureObjective` uses the endpoint risk rather than the change in risk,
+so standing in unchanging danger keeps costing; $-\Delta Risk$ would score it as
+free. Set `scale_by_duration=False` for the equal-duration form $-Risk(S')$.
 
 ## Reward functions
 
@@ -180,7 +209,6 @@ the training/runtime layer that consumes this result.
 The reward package is implemented, but it is intentionally independent from
 the planner and `RLBasedSearchStrategy`. At present it does not:
 
-- provide built-in domain objectives;
 - calculate preference weights or scalarize reward vectors;
 - train an RL agent or order feasible HTN methods;
 - record experience or connect predicted rewards to executed rewards.

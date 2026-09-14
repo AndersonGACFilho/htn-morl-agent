@@ -38,16 +38,29 @@ flowchart TB
     A --> OD[OpenDoorAction]
 ```
 
-| File            | Role                                                 |
-|-----------------|------------------------------------------------------|
-| `env.py`        | Gymnasium configuration and environment              |
-| `pathfinder.py` | Grid context and BFS                                 |
-| `movement.py`   | Converts an adjacent step into an environment action |
-| `actions.py`    | World adapter and concrete HTN actions               |
-| `domain.py`     | Domain, tasks, methods, and symbolic effects         |
-| `sensors.py`    | Facts observed by the planner                        |
-| `renderer.py`   | Terminal visualization through Rich                  |
-| `main.py`       | Composition root and simulation loop                 |
+The package holds a shared `core/` and two thin variants that differ only where
+the scenarios genuinely differ.
+
+| Module                        | Role                                                        |
+|-------------------------------|-------------------------------------------------------------|
+| `core/config.py`              | Static parameters and their validation                      |
+| `core/layout.py`              | Entity placement and randomization for one episode           |
+| `core/state.py`               | Immutable episode state                                     |
+| `core/rules.py`               | Movement and interaction semantics, and tile passability     |
+| `core/movement_profile.py`    | Movement profiles and the discrete action encoding           |
+| `core/clock.py`               | Per-episode elapsed time                                    |
+| `core/observation.py`         | Gymnasium observation space and observations                 |
+| `core/env.py`                 | `gym.Env` facade composing the collaborators above           |
+| `core/world.py`               | `GymWorld` adapter used by the actions                       |
+| `core/pathfinder.py`          | Grid context and BFS                                        |
+| `core/route.py`               | Route search honouring the rules' passability                |
+| `core/navigation.py`          | Reactive navigation action shared by both variants           |
+| `core/palette.py`, `theme.py` | Manuscript palettes, glyphs, and cell styles                 |
+| `core/view/`                  | Frame view models and their builders                        |
+| `core/rendering/`             | Panels, renderer, SVG export, and GIF assembly               |
+| `core/runtime/`               | Tick loop, status presentation, and episode result           |
+| `single_objective/`           | Key–door actions, domain, sensor, and composition root       |
+| `multi_objective/`            | Energy, health, risk, reward vector, and composition root    |
 
 Continue to [environment and configuration](environment.md) or see [domain, actions, and navigation](domain-and-actions.md).
 
