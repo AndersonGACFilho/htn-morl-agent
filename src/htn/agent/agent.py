@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from agent.agent_base import AgentBase
 from htn.actions.action_status import ActionStatus
+from htn.agent.agent_base import AgentBase
 from htn.planner.planner import Planner
 from htn.tasks.types.primitive_task import PrimitiveTask
 from htn.tasks.types.task import Task
