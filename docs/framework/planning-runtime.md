@@ -180,3 +180,59 @@ An infeasible task forces an immediate replan, because the plan physically
 cannot execute and waiting only wastes ticks. An unjustified method leaves an
 executable plan, so the decision of whether to abandon it is a policy question
 rather than a correctness one.
+
+## Planned: partial replanning
+
+Replanning currently discards the whole plan and rebuilds from the root tasks,
+even when the violation affects a single subtree. The decomposition record makes
+a cheaper alternative possible, and the data it needs is already produced: the
+violation carries the plan position, the simulated state reaching it, and the
+compound task to decompose again, whose recorded span delimits the slice to
+replace.
+
+The planned procedure re-decomposes the lowest ancestor of the violation,
+splices the result into the plan, and validates the spliced plan. On failure it
+climbs one level and retries. The chain is finite, so the procedure terminates,
+and its last level is the root — today's full replan becomes the degenerate case
+rather than a separate path.
+
+```text
+prim → method → compound → method → compound → ... → root
+       └── first replan target, then one level up per failed attempt
+```
+
+Two conditions carry the correctness of the splice:
+
+- **The boundary state, not the current one.** A subtree does not start now; it
+  starts after the tasks preceding it in the plan. Re-decomposition must begin
+  from the simulated state at the slice boundary.
+- **Re-validate the suffix.** A new decomposition may produce different effects
+  from the one it replaces, so tasks after the slice may no longer hold. Without
+  this check, an invalid plan is swapped for another invalid plan and the failure
+  resurfaces ticks later, far from its cause.
+
+The procedure assumes the primitive tasks of a subtree occupy contiguous plan
+positions, which follows from depth-first decomposition. Extending the planner to
+partially ordered networks would break that assumption and require revisiting the
+splice.
+
+## Planned: replanning policy
+
+`_should_replan()` delegates the unjustified-method case to a policy that
+currently always accepts, so both violation kinds still behave alike.
+
+A policy guards against the opposite waste from the one partial replanning
+addresses: switching plans too often when a precondition oscillates, for example
+under a noisy sensor. Two forms are planned. A persistence counter replans only
+after the violation holds for a minimum number of consecutive ticks — cheap, but
+with an arbitrary threshold. A gain deadband compares the vector cost of
+continuing against the alternative plan and switches only when the improvement
+clears a margin — the threshold stops being arbitrary, at the cost of building
+the alternative plan even when it is discarded.
+
+The policy will be an explicit extension point shaped like
+`MethodSelectionStrategy`, so each variant becomes a comparable experimental
+variable rather than a constant buried in the agent.
+
+Hysteresis applies to justification only. An infeasible task cannot execute, so
+delaying it wastes ticks without ever becoming feasible.

@@ -575,6 +575,26 @@ earlier one still in the plan.
 The first violation is returned with its kind, its plan position, the simulated
 state reaching that position, and the compound task to decompose again.
 
+### Planned
+
+Two behaviours are designed but not implemented.
+
+**Partial replanning.** The agent still rebuilds the whole plan on any
+violation. The recorded spans and the violation payload are enough to
+re-decompose only the affected compound task, splice the result into the plan,
+and validate the spliced plan — climbing to the next ancestor when that fails,
+down to the root, which reproduces today's behaviour as the degenerate case.
+Two conditions matter: re-decomposition starts from the simulated state at the
+slice boundary rather than the current observation, and the suffix must be
+re-validated because the new decomposition may produce different effects.
+
+**Replanning policy.** `_should_replan()` returns `True` for an unjustified
+method unconditionally, so both violation kinds behave alike. A policy shaped
+like `MethodSelectionStrategy` will decide that case, either by requiring the
+violation to persist for a number of ticks or by comparing the vector cost of
+continuing against the alternative. Hysteresis applies only to justification:
+an infeasible task never becomes feasible by waiting.
+
 ---
 
 ## World State Change Handler
