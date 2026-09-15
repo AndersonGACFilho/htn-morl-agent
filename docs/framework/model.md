@@ -15,15 +15,17 @@ world_state.set_state("energy", 10)
 
 ```mermaid
 classDiagram
-    class Task { +name: str }
+    class Task { +name: str +method: Method +parent_task: CompoundTask }
     class PrimitiveTask { +action: Action +preconditions: Preconditions +effects: Effects }
     class CompoundTask { +methods: list~Method~ }
-    class Method { +preconditions: Preconditions +tasks: list~Task~ }
+    class Method { +preconditions: Preconditions +tasks: list~Task~ +parent_task: CompoundTask }
     class Domain { +tasks: list~Task~ }
     Task <|-- PrimitiveTask
     Task <|-- CompoundTask
     CompoundTask o-- Method
     Method o-- Task
+    Task --> Method: method
+    Method --> CompoundTask: parent_task
     Domain o-- Task
 ```
 
@@ -31,6 +33,33 @@ classDiagram
 - **`CompoundTask`** represents a high-level intent and lists alternative decompositions (`Method`).
 - **`Method`** declares its own preconditions and an ordered list of subtasks. An empty list is a valid decomposition, useful for a *no-op* branch.
 - **`Domain`** contains the root tasks, evaluated by the `Planner` in declaration order.
+
+## Ownership and back-references
+
+A domain declares tasks once and reuses them across methods. `walk_to_goal` may
+appear in several decompositions, and `reach_goal` may be a subtask of more than
+one method. Each occurrence needs its own place in the hierarchy, so `Method`
+and `CompoundTask` deep-copy what they receive and wire the copies:
+
+```python
+method = Method(id="reach_goal.direct", name="Direct", preconditions={}, tasks=[walk_to_goal])
+compound = CompoundTask(name="reach_goal", methods=[method])
+
+compound.methods[0] is method              # False: the tree holds a copy
+compound.methods[0].tasks[0].method        # the copied method
+compound.methods[0].tasks[0].parent_task   # compound
+walk_to_goal.method                        # None: the declared task stays a template
+```
+
+Two consequences follow. Every node in the tree has exactly one parent, so the
+chain from a task back to its root is unambiguous — which is what lets the
+planner and the agent attribute a plan step to the decision that produced it.
+And the objects a domain builder declares are never mutated: they remain
+templates, so a task placed in two methods yields two independent instances.
+
+`Task.parent_task` is derived, not stored: it reads `method.parent_task`, so the
+two levels of the hierarchy cannot drift apart. A root task has no method, and
+its `parent_task` is `None`.
 
 ## Method-selection strategies
 

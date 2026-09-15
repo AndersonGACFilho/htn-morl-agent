@@ -4,10 +4,22 @@
 
 `Planner.build_plan(tasks)` starts from a copy of `world_state_copy` and
 traverses the caller-provided root tasks in order. For each task,
-`recursive_planning()` returns either a pair of `(planned_tasks,
-simulated_state)` or `None`. If a later root task cannot be planned, the
-successfully planned prefix is returned; `None` is returned only when no
-primitive task can be planned.
+`recursive_planning()` returns either a `PlanningResult` or `None`. If a later
+root task cannot be planned, the successfully planned prefix is returned;
+`None` is returned only when no primitive task can be planned.
+
+```python
+@dataclass(frozen=True, slots=True)
+class PlanningResult:
+    tasks: list[Task]
+    world_state: WorldState
+    decompositions: list[MethodDecomposition]
+```
+
+The result is immutable and extending a branch builds a new one, so a method
+that fails midway leaves the branch it started from untouched. Backtracking is
+therefore a property of the type rather than a copy the planner must remember
+to make.
 
 ```mermaid
 flowchart TD
@@ -54,7 +66,7 @@ removes HTN backtracking or makes an infeasible method valid.
 
 ## Planner state
 
-`update_world_state()` replaces the snapshot with an observed copy and clears `_current_plan`. `build_plan()` uses a new local list; the plan being executed belongs to the `Agent`, so a sensor update does not automatically erase it.
+`update_world_state()` replaces the snapshot with an observed copy and clears `_current_plan`. `build_plan()` builds a fresh result each call; the plan being executed belongs to the `Agent`, so a sensor update does not automatically erase it.
 
 ## `Agent` state machine
 
@@ -66,7 +78,7 @@ stateDiagram-v2
     Plan --> NoPlan: empty build_plan()
     Plan --> Execute: plan created
     Execute --> Execute: RUNNING
-    Execute --> Decide: SUCCESS (removes task)
+    Execute --> Decide: SUCCESS (advances cursor)
     Execute --> Plan: FAILURE (clears plan)
     NoPlan --> [*]
 ```
@@ -77,22 +89,94 @@ replanning attempt. `AgentTickResult` returns the task name, status, whether
 replanning occurred, newly created plan names, the remaining plan, and an
 optional message.
 
-## Lazy replanning
+The agent holds the plan as an `ExecutablePlan`, which pairs the task list with
+its decomposition record and tracks progress with a cursor:
 
-A sensor update marks `_world_state_changed`, but does not immediately destroy the plan. Before replanning, `_is_plan_still_valid()` simulates the remaining primitive tasks from the current observation:
+```python
+@dataclass(frozen=True, slots=True)
+class ExecutablePlan:
+    tasks: list[Task]
+    decompositions: list[MethodDecomposition]
+    executed_count: int = 0
+```
 
-1. checks the task's preconditions;
-2. applies its effects to the copy;
-3. proceeds to the next task.
+Executed tasks stay in the list instead of being removed, because the recorded
+spans index that list. `remaining_tasks` and `remaining_decompositions` expose
+the pending part, rebasing each span onto it and dropping the methods already
+closed. A method whose span starts behind the cursor but ends ahead of it stays
+open: part of its decomposition is still pending, so it still needs to hold.
 
-This allows a future action to depend on an effect from an earlier action that is still in the plan. A `ValueError` in a condition or effect safely invalidates the plan.
+`Agent.plan` remains a read-only view of the pending tasks, so consumers that
+iterate the plan are unaffected.
+
+## Decomposition record
+
+A plan is a flat list of primitive tasks, which alone does not say which method
+produced each step. The planner records every applied method as the branch
+succeeds:
+
+```python
+@dataclass(frozen=True, slots=True)
+class MethodDecomposition:
+    method: Method
+    compound_task: CompoundTask
+    start_index: int
+    end_index: int
+    depth: int
+```
+
+`start_index` and `end_index` delimit the plan span the method produced. A
+method whose decomposition is empty yields `start_index == end_index`, which
+keeps a no-op branch visible in the record even though it contributes no task.
+`depth` preserves the nesting, so a validator can check an outer method before
+the ones nested in it.
+
+Records travel inside the branch result and are discarded together with it when
+a method fails, so a plan never carries a decision that was backtracked over.
+
+## Plan validation
+
+A sensor update does not destroy the plan. `validate_plan()` walks the remaining
+plan once, carrying a simulated state, and checks two distinct properties:
+
+| Level | Question | Violation |
+|---|---|---|
+| Primitive task | Can this action still execute? | `INFEASIBLE_TASK` |
+| Method | Is this decomposition still the right one? | `UNJUSTIFIED_METHOD` |
+
+At each position the walk first checks the methods that open there, outermost
+first, then the primitive task, then applies its effects to the simulated copy.
+Checking methods where their compound task started decomposing — rather than
+against the current observation — keeps the check faithful to the state the
+planner saw when it chose that branch. The same carried state lets a later
+action depend on an effect produced by an earlier one still in the plan.
+
+The distinction matters because the two levels fail independently. In the
+GridWorld domain, `reach_goal.safe_route` and `reach_goal.direct_route` expand
+into navigation tasks with identical preconditions; only the method mentions
+`route_is_dangerous`. Once the hazard clears, every primitive task in the plan
+remains executable while the branch that justified them no longer applies.
+Validating only the task level would leave the agent on the slow profile for the
+rest of the episode.
+
+`validate_plan()` returns the first violation it finds, with the plan position,
+the simulated state reaching that position, and the compound task to decompose
+again. A valid plan yields no violation.
 
 ## Action statuses
 
 | Status    | Effect on the plan                                         |
 |-----------|------------------------------------------------------------|
 | `RUNNING` | keeps the current task for the next tick                   |
-| `SUCCESS` | removes the current task                                   |
+| `SUCCESS` | advances the cursor past the current task                  |
 | `FAILURE` | discards the entire plan; the next tick will plan again    |
 
-An unexpected non-primitive task is removed and reported in a message. This is a defensive mechanism: in normal operation, the planner already returns only primitive leaves.
+An unexpected non-primitive task is skipped and reported in a message. This is a defensive mechanism: in normal operation, the planner already returns only primitive leaves.
+
+## Replanning condition
+
+The agent replans when it has no plan, or when validation reports a violation.
+An infeasible task forces an immediate replan, because the plan physically
+cannot execute and waiting only wastes ticks. An unjustified method leaves an
+executable plan, so the decision of whether to abandon it is a policy question
+rather than a correctness one.

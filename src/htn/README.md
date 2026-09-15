@@ -401,22 +401,34 @@ The `Planner` decomposes domain tasks into an ordered list of executable tasks.
 ```python
 strategy = DepthFirstSearchStrategy()
 planner = Planner(domain, world_state, strategy)
-plan = planner.build_plan(domain.tasks)  # -> list[Task] | None
+plan = planner.build_plan(domain.tasks)  # -> PlanningResult | None
 ```
 
 The planner owns:
 
 ```python
 domain: Domain
-_current_plan: list[Task]      # kept for representation/legacy state; build_plan uses a local plan
-world_state_copy: WorldState   # snapshot used during planning
-_strategy: MethodSelectionStrategy  # orders feasible methods
+_current_plan: PlanningResult | None  # last result, kept for representation
+world_state_copy: WorldState          # snapshot used during planning
+_strategy: MethodSelectionStrategy    # orders feasible methods
 ```
 
-`build_plan(tasks)` returns a fresh local list each call. If a later root task
-fails, it returns the successfully planned prefix; it returns `None` when the
-first task cannot produce a primitive task. Runtime execution state is owned by
-the `Agent`.
+`build_plan(tasks)` returns a fresh `PlanningResult` each call. If a later root
+task fails, it returns the successfully planned prefix; it returns `None` when
+the first task cannot produce a primitive task. Runtime execution state is owned
+by the `Agent`.
+
+```python
+@dataclass(frozen=True, slots=True)
+class PlanningResult:
+    tasks: list[Task]
+    world_state: WorldState
+    decompositions: list[MethodDecomposition]
+```
+
+`decompositions` records every method the planner applied, with the plan span it
+produced and its nesting depth. A method that expands to no task is recorded as
+a zero-width span, so a no-op branch remains visible in a flat plan.
 
 ---
 
@@ -424,17 +436,21 @@ the `Agent`.
 
 ```python
 recursive_planning(
-    task_list: list[Task],
-    world_state: WorldState,
+    branch: PlanningResult,
     task: Task,
-) -> tuple[list[Task], WorldState] | None
+    depth: int = 0,
+) -> PlanningResult | None
 ```
 
 **Primitive task:** checks preconditions, appends task, applies effects to a simulated copy, and returns the updated branch.
 
 **Compound task:** gets feasible methods, orders them through the configured
-strategy, recursively plans all subtasks, and returns on first success. It
-performs method-level backtracking if a subtask fails.
+strategy, recursively plans all subtasks, records the applied method, and
+returns on first success. It performs method-level backtracking if a subtask
+fails.
+
+Because `PlanningResult` is immutable and every extension builds a new one, a
+failed method leaves the branch it started from untouched, records included.
 
 ```text
 CompoundTask
@@ -472,10 +488,21 @@ The agent owns:
 ```python
 planner: Planner
 world_state: WorldState   # last known symbolic state
-plan: list[Task]          # current remaining plan
 tasks: list[Task]         # copied root-task sequence for replanning
-_world_state_changed: bool
+_plan: ExecutablePlan     # tasks, decomposition record, and execution cursor
 ```
+
+`plan` is a read-only view of the tasks still pending:
+
+```python
+@property
+def plan(self) -> list[Task]:
+    return self._plan.remaining_tasks
+```
+
+`ExecutablePlan` keeps executed tasks in the list and tracks progress with a
+cursor, because the recorded decomposition spans index that list. Removing
+entries would shift every span out of alignment.
 
 ---
 
@@ -489,7 +516,7 @@ Each tick the agent:
 
 1. checks whether to replan (`_should_replan()`);
 2. executes the current primitive task via `action.execute(world)`;
-3. on `SUCCESS`, removes the task from the plan;
+3. on `SUCCESS`, advances the cursor past the task;
 4. on `FAILURE`, clears the entire plan;
 5. on `RUNNING`, keeps the task at the front for the next tick.
 
@@ -520,15 +547,33 @@ The agent replans lazily: only when there is no plan, or when the world state ha
 def _should_replan(self) -> bool:
     if not self.plan:
         return True
-    if not self._world_state_changed:
+
+    validation = validate_plan(
+        self.plan,
+        self._plan.remaining_decompositions,
+        self.world_state,
+    )
+    violation = validation.violation
+
+    if violation is None:
         return False
-    if self._is_plan_still_valid():
-        self._world_state_changed = False
-        return False
+
+    if violation.kind is PlanViolationKind.INFEASIBLE_TASK:
+        return True
+
     return True
 ```
 
-`_is_plan_still_valid()` simulates the remaining plan forward against the current world state, applying each primitive task's effects in order, before deciding to discard it. This allows future tasks in the plan to depend on effects produced by earlier tasks.
+`validate_plan()` walks the remaining plan once, carrying a simulated state, and
+checks two properties. A primitive task must still satisfy its preconditions
+where it executes, which answers whether the plan can run at all. Every applied
+method must still satisfy its preconditions where its compound task started
+decomposing, which answers whether the chosen branch still applies. Carrying the
+simulated state forward lets a later task depend on an effect produced by an
+earlier one still in the plan.
+
+The first violation is returned with its kind, its plan position, the simulated
+state reaching that position, and the compound task to decompose again.
 
 ---
 
@@ -538,7 +583,6 @@ def _should_replan(self) -> bool:
 def handle_world_state_change(self, world_state: WorldState) -> None:
     self.world_state = world_state.copy()
     self.planner.update_world_state(world_state)
-    self._world_state_changed = True
 ```
 
 Registered as a listener on `SensorSystem.on_world_state_changed`. The agent plan is not discarded immediately; it is validated on the next tick.
