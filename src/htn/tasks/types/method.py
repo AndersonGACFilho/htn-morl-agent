@@ -1,9 +1,16 @@
+from __future__ import annotations
+
+import copy
 import re
+from typing import TYPE_CHECKING
 
 from htn.tasks.types.preconditions import Preconditions
 from htn.tasks.types.task import Task
 
 METHOD_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
+
+if TYPE_CHECKING:
+    from htn.tasks.types.compound_task import CompoundTask
 
 
 class Method:
@@ -16,6 +23,7 @@ class Method:
 
     id: str
     name: str
+    parent_task: CompoundTask | None
     preconditions: Preconditions
     tasks: list[Task]
 
@@ -51,10 +59,14 @@ class Method:
                 "using only lowercase letters, numbers, and underscores"
             )
 
+        self.tasks = [copy.deepcopy(task) for task in tasks]
+        for task in self.tasks:
+            task.method = self
+
         self.id = normalized_id
         self.name = normalized_name
-        self.tasks = tasks
         self.preconditions = preconditions
+        self.parent_task = None
 
     def get_task(self, index: int) -> Task:
         """

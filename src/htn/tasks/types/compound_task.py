@@ -1,3 +1,5 @@
+import copy
+
 from htn.tasks.types.method import Method
 from htn.tasks.types.preconditions import are_preconditions_satisfied
 from htn.tasks.types.task import Task
@@ -44,7 +46,9 @@ class CompoundTask(Task):
                 f"{formatted_ids}."
             )
 
-        self.methods = methods
+        self.methods = [copy.deepcopy(method) for method in methods]
+        for method in self.methods:
+            method.parent_task = self
 
     # Getters
     def get_methods(self) -> list[Method]:
