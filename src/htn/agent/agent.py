@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 from htn.actions.action_status import ActionStatus
 from htn.agent.agent_base import AgentBase
+from htn.agent.executable_plan import ExecutablePlan
+from htn.agent.plan_validation import PlanViolationKind, validate_plan
 from htn.planner.planner import Planner
 from htn.tasks.types.primitive_task import PrimitiveTask
 from htn.tasks.types.task import Task
@@ -47,8 +49,13 @@ class Agent(AgentBase):
 
     planner: Planner
     world_state: WorldState
-    plan: list[Task]
+    _plan: ExecutablePlan
     tasks: list[Task]
+
+    @property
+    def plan(self) -> list[Task]:
+        """Tasks of the current plan that have not executed yet."""
+        return self._plan.remaining_tasks
 
     def __init__(
         self, planner: Planner, world_state: WorldState, tasks: list[Task]
@@ -66,8 +73,7 @@ class Agent(AgentBase):
         self.planner = planner
         self.world_state = world_state.copy()
         self.tasks = tasks.copy()
-        self.plan = []
-        self._world_state_changed = False
+        self._plan = ExecutablePlan.empty()
 
     def tick(self, world: World) -> AgentTickResult:
         """
@@ -89,12 +95,11 @@ class Agent(AgentBase):
         planned_tasks: list[str] = []
 
         if self._should_replan():
-            new_plan = self.planner.build_plan(self.tasks)
-            self._world_state_changed = False
+            planning_result = self.planner.build_plan(self.tasks)
             replanned = True
 
-            if new_plan is None:
-                self.plan = []
+            if planning_result is None:
+                self._plan = ExecutablePlan.empty()
                 return AgentTickResult(
                     task_name=None,
                     status=None,
@@ -104,13 +109,16 @@ class Agent(AgentBase):
                     message="HTN: No valid plan.",
                 )
 
-            self.plan = new_plan
+            self._plan = ExecutablePlan(
+                tasks=planning_result.tasks,
+                decompositions=planning_result.decompositions,
+            )
             planned_tasks = self.get_plan_names()
 
         current_task = self.plan[0]
 
         if not isinstance(current_task, PrimitiveTask):
-            self.plan.pop(0)
+            self._plan = self._plan.advance()
 
             return AgentTickResult(
                 task_name=current_task.name,
@@ -124,10 +132,10 @@ class Agent(AgentBase):
         status = current_task.action.execute(world)
 
         if status == ActionStatus.SUCCESS:
-            self.plan.pop(0)
+            self._plan = self._plan.advance()
 
         elif status == ActionStatus.FAILURE:
-            self.plan = []
+            self._plan = ExecutablePlan.empty()
 
         elif status == ActionStatus.RUNNING:
             pass
@@ -158,7 +166,6 @@ class Agent(AgentBase):
         """
         self.world_state = world_state.copy()
         self.planner.update_world_state(world_state)
-        self._world_state_changed = True
 
     def get_plan_names(self) -> list[str]:
         """
@@ -179,38 +186,17 @@ class Agent(AgentBase):
         if not self.plan:
             return True
 
-        if not self._world_state_changed:
+        validation = validate_plan(
+            self.plan,
+            self._plan.remaining_decompositions,
+            self.world_state,
+        )
+        violation = validation.violation
+
+        if violation is None:
             return False
 
-        if self._is_plan_still_valid():
-            self._world_state_changed = False
-            return False
-
-        return True
-
-    def _is_plan_still_valid(self) -> bool:
-        """
-        Validate the remaining plan against a simulated world-state copy.
-
-        This allows future tasks to depend on effects produced by previous
-        tasks in the same plan.
-
-        Returns:
-            True if the remaining plan is still executable.
-        """
-        simulated_state = self.world_state.copy()
-
-        try:
-            for task in self.plan:
-                if not isinstance(task, PrimitiveTask):
-                    continue
-
-                if not task.check_preconditions(simulated_state):
-                    return False
-
-                task.apply_effects(simulated_state)
-
-        except ValueError:
-            return False
+        if violation.kind is PlanViolationKind.INFEASIBLE_TASK:
+            return True
 
         return True

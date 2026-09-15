@@ -1,9 +1,22 @@
+from dataclasses import dataclass
+
+from htn.planner.method_decomposition import MethodDecomposition
 from htn.strategy.method_selection_strategy import MethodSelectionStrategy
 from htn.tasks.domains.domain import Domain
 from htn.tasks.types.compound_task import CompoundTask
+from htn.tasks.types.method import Method
 from htn.tasks.types.primitive_task import PrimitiveTask
 from htn.tasks.types.task import Task
 from htn.world.state import WorldState
+
+
+@dataclass(frozen=True, slots=True)
+class PlanningResult:
+    """Tasks planned so far, the state they lead to, and how they were decomposed."""
+
+    tasks: list[Task]
+    world_state: WorldState
+    decompositions: list[MethodDecomposition]
 
 
 class Planner:
@@ -15,7 +28,7 @@ class Planner:
     """
 
     domain: Domain
-    _current_plan: list[Task]
+    _current_plan: PlanningResult | None
     _strategy: MethodSelectionStrategy
     world_state_copy: WorldState
 
@@ -31,11 +44,11 @@ class Planner:
             strategy: Policy that orders feasible methods during decomposition.
         """
         self.domain = domain
-        self._current_plan = []
+        self._current_plan = None
         self.world_state_copy = world_state.copy()
         self._strategy = strategy
 
-    def build_plan(self, tasks: list[Task]) -> list[Task] | None:
+    def build_plan(self, tasks: list[Task]) -> PlanningResult | None:
         """
         Builds an executable plan for the given task sequence.
 
@@ -47,92 +60,156 @@ class Planner:
             tasks: Root tasks to plan in order. The caller owns this sequence.
 
         Returns:
-            The successfully planned primitive-task prefix, or ``None`` when
-            the first task cannot be planned.
+            The planned prefix with its decomposition, or ``None`` when the
+            first task cannot be planned.
         """
-        working_state = self.world_state_copy.copy()
+        result = PlanningResult(
+            tasks=[],
+            world_state=self.world_state_copy.copy(),
+            decompositions=[],
+        )
 
-        plan_result: list[Task] = []
         for task in tasks:
-            result = self.recursive_planning(plan_result, working_state, task)
+            extended = self.recursive_planning(result, task)
 
-            if result is None:
+            if not extended:
                 break
 
-            plan_result, working_state = result
+            result = extended
 
-        if not plan_result:
+        if not result.tasks:
             return None
 
-        self._current_plan = plan_result
+        self._current_plan = result
 
-        return plan_result
+        return result
 
     def recursive_planning(
         self,
-        task_list: list[Task],
-        world_state: WorldState,
+        branch: PlanningResult,
         task: Task,
-    ) -> tuple[list[Task], WorldState] | None:
+        depth: int = 0,
+    ) -> PlanningResult | None:
         """
         Extend a planning branch for one task using simulated state.
 
-        Feasible methods are passed to the configured strategy before the
-        planner attempts them recursively. A failed decomposition still
-        backtracks to the next ordered method.
-
         Args:
-            task_list: Primitive tasks already planned for this branch.
-            world_state: Simulated state for this branch.
+            branch: Branch planned so far.
             task: Task to decompose or validate.
+            depth: Decomposition depth, recorded so the validator can check
+                outer methods before the ones nested in them.
 
         Returns:
-            The extended task list and simulated state, or ``None`` when no
-            valid decomposition exists.
+            The extended branch, or ``None`` when no valid decomposition exists.
         """
-
         if isinstance(task, PrimitiveTask):
-            if not task.check_preconditions(world_state):
-                return None
-
-            planned_tasks = task_list.copy()
-            planned_world_state = world_state.copy()
-
-            planned_tasks.append(task)
-            task.apply_effects(planned_world_state)
-            return planned_tasks, planned_world_state
+            return self._plan_primitive_task(branch, task)
 
         if isinstance(task, CompoundTask):
-            feasible_methods = task.get_feasible_methods(world_state)
-            ordered_methods = self._strategy.order_methods(
-                feasible_methods, world_state
+            return self._plan_compound_task(branch, task, depth)
+
+        return None
+
+    def _plan_primitive_task(
+        self,
+        branch: PlanningResult,
+        task: PrimitiveTask,
+    ) -> PlanningResult | None:
+        """
+        Append a planning task to the current planning result.
+
+        Args:
+            branch: Branch planned so far.
+            task: Task to decompose or validate.
+        Returns:
+            The planned task, or ``None`` when no valid decomposition exists.
+        """
+        if not task.check_preconditions(branch.world_state):
+            return None
+
+        planned_world_state = branch.world_state.copy()
+        task.apply_effects(planned_world_state)
+
+        return PlanningResult(
+            tasks=branch.tasks + [task],
+            world_state=planned_world_state,
+            decompositions=branch.decompositions,
+        )
+
+    def _plan_compound_task(
+        self,
+        branch: PlanningResult,
+        task: CompoundTask,
+        depth: int = 0,
+    ) -> PlanningResult | None:
+        """
+        Decompose a compound task based on the current strategy
+
+        Args:
+            branch: Branch planned so far.
+            task: Task to decompose or validate.
+            depth: Decomposition depth, recorded so the validator can check
+            outer methods before the ones nested in them.
+        Returns:
+            The planned task, or ``None`` when no valid decomposition exists.
+        """
+        start_index = len(branch.tasks)
+        feasible_methods = task.get_feasible_methods(branch.world_state)
+
+        ordered_methods = self._strategy.order_methods(
+            feasible_methods,
+            branch.world_state,
+        )
+        for method in ordered_methods:
+            decomposed = self._decompose_with_method(branch, method, depth)
+
+            if not decomposed:
+                continue
+
+            return PlanningResult(
+                tasks=decomposed.tasks,
+                world_state=decomposed.world_state,
+                decompositions=decomposed.decompositions
+                + [
+                    MethodDecomposition(
+                        method=method,
+                        compound_task=task,
+                        start_index=start_index,
+                        end_index=len(branch.tasks),
+                        depth=depth,
+                    )
+                ],
             )
 
-            for method in ordered_methods:
-                method_tasks = task_list.copy()
-                method_world_state = world_state.copy()
-                method_failed = False
-
-                for subtask in method.tasks:
-                    result = self.recursive_planning(
-                        method_tasks,
-                        method_world_state,
-                        subtask,
-                    )
-
-                    if result is None:
-                        method_failed = True
-                        break
-
-                    method_tasks, method_world_state = result
-
-                if method_failed:
-                    continue
-
-                return method_tasks, method_world_state
-
-        print(f"Task '{task.name}' ({task.__class__.__name__}) cannot be planned.")
         return None
+
+    def _decompose_with_method(
+        self,
+        branch: PlanningResult,
+        method: Method,
+        depth: int = 0,
+    ) -> PlanningResult | None:
+        """
+        Plan every subtask of a method, or fail as a whole.
+
+        Args:
+            branch: Branch planned so far.
+            method: Method to decompose.
+            depth: Decomposition depth, recorded so the validator can check
+
+        Returns:
+            The planned task, or ``None`` when no valid decomposition exists.
+        """
+        decomposed = branch
+        for subtask in method.tasks:
+            extended = self.recursive_planning(decomposed, subtask, depth + 1)
+
+            if not extended:
+                return None
+
+            decomposed = extended
+
+        return decomposed
 
     def update_world_state(self, world_state: WorldState) -> None:
         """
@@ -143,7 +220,7 @@ class Planner:
             None
         """
         self.world_state_copy = world_state.copy()
-        self._current_plan = []
+        self._current_plan = None
 
     def __repr__(self) -> str:
         """
