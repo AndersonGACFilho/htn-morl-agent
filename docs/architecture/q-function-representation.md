@@ -203,8 +203,8 @@ happened to name anything:
 
 Sharing the fact-key embedding table between $WS_t$ and precondition tokens
 is the important part: it lets $\mathbf{Q}_\theta$ relate "this method
-requires $energy\_is\_low = \mathrm{True}$" to "the current state has
-$energy\_is\_low = \mathrm{True}$" directly, instead of learning that
+requires `energy_is_low = True`" to "the current state has
+`energy_is_low = True`" directly, instead of learning that
 association from scratch behind an opaque id. The resulting vector can
 replace the one-hot input to the masked/conditioned MLP, or the looked-up
 embedding of a method token in the attention encoder — it is a
