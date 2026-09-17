@@ -14,7 +14,7 @@
 rule
 
 $$
-M_t^* = \underset{M \in \mathcal{M}_{\mathrm{valid}}(C_t, WS_t)}{\operatorname{arg\,max}}\;
+M_t^* = \underset{M \in \mathcal{M}_{\mathrm{valid}}(C_t, WS_t)}{\mathrm{arg\,max}}\;
 u_{\mathbf{w}_t}\!\left(\mathbf{Q}_{\theta}(C_t, WS_t, M,\mathbf{w}_t)\right)
 $$
 
@@ -201,6 +201,34 @@ happened to name anything:
   unlike preconditions, this order is semantically meaningful, since it is
   the decomposition sequence.
 
+```mermaid
+flowchart LR
+    PT["method.parent_task"] --> E1["Categorical embedding"]
+
+    subgraph PC["method.preconditions (a set)"]
+        P1["fact key, operator, value"]
+        P2["fact key, operator, value"]
+    end
+    FT[("Fact-key embedding table<br/>shared with WS_t encoding")] -.-> P1
+    FT -.-> P2
+    P1 --> E2["Sum / mean over<br/>precondition tokens"]
+    P2 --> E2
+
+    subgraph TS["Method.tasks (ordered)"]
+        T1["subtask 1"]
+        T2["subtask 2"]
+    end
+    T1 --> E3["Ordered subtask tokens"]
+    T2 --> E3
+
+    E1 --> AGG["Method representation vector"]
+    E2 --> AGG
+    E3 --> AGG
+
+    AGG --> MLP["Concatenated input<br/>(masked/conditioned MLP)"]
+    AGG --> ATT["Method token<br/>(attention encoder)"]
+```
+
 Sharing the fact-key embedding table between $WS_t$ and precondition tokens
 is the important part: it lets $\mathbf{Q}_\theta$ relate "this method
 requires `energy_is_low = True`" to "the current state has
@@ -264,6 +292,16 @@ weights) before this page connected it to method representation.
 | Engineering cost | Lowest | Low — reuses an ordinary network | Highest — new architecture and training loop |
 
 ## Sequencing
+
+```mermaid
+flowchart TD
+    A["Tabular baseline<br/>(symbolic-morl.md)"] --> B{"Real training scenarios show<br/>action-cardinality burden or<br/>WS_t sparsity?"}
+    B -->|No| A
+    B -->|Yes| C["Masked / conditioned MLP"]
+    C --> D{"Concrete need for<br/>cross-candidate interaction,<br/>or a richer method token?"}
+    D -->|No| C
+    D -->|Yes| E["Token-based attention encoder"]
+```
 
 Do not implement any option beyond the tabular baseline before
 [MORL-guided HTN method selection](symbolic-morl.md)'s baseline is running

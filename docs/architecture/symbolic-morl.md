@@ -62,7 +62,7 @@ flowchart TD
 The proposed architecture applies MORL at one precise point: a `CompoundTask` has more than one applicable `Method` during planning. The HTN planner first computes:
 
 $$
-\mathcal{M}_{\mathrm{valid}}(C_t, WS_t) = \left\{M \in \mathcal{M}(C_t) \mid \operatorname{preconditions}(M, WS_t)\right\}
+\mathcal{M}_{\mathrm{valid}}(C_t, WS_t) = \left\{M \in \mathcal{M}(C_t) \mid \mathrm{preconditions}(M, WS_t)\right\}
 $$
 
 Here, $WS_t$ is the current hypothetical planning state $\hat S_t$, initialized from an observation, $C_t$ is the current compound task, $\mathcal{M}(C_t)$ is the set of methods declared for that task, $M$ is one candidate method, and $\mathcal{M}_{\mathrm{valid}}$ is the subset whose preconditions hold in that state.
@@ -70,10 +70,10 @@ Here, $WS_t$ is the current hypothetical planning state $\hat S_t$, initialized 
 Only then does MORL make one direct selection. A conceptual decision rule is:
 
 $$
-M_t^* = \underset{M \in \mathcal{M}_{\mathrm{valid}}(C_t, WS_t)}{\operatorname{arg\,max}}\; u_{\mathbf{w}_t}\!\left(\mathbf{Q}_{\theta}(C_t, WS_t, M,\mathbf{w}_t)\right)
+M_t^* = \underset{M \in \mathcal{M}_{\mathrm{valid}}(C_t, WS_t)}{\mathrm{arg\,max}}\; u_{\mathbf{w}_t}\!\left(\mathbf{Q}_{\theta}(C_t, WS_t, M,\mathbf{w}_t)\right)
 $$
 
-In this equation, $M_t^*$ is the selected method, $\mathbf{Q}_{\theta}(C_t,WS_t,M,\mathbf{w}_t)$ is the estimated vector value of choosing $M$ in symbolic state $WS_t$ for task $C_t$ under the current preference, and $\operatorname{arg\,max}$ returns the candidate with the highest utility under $\mathbf{w}_t$.
+In this equation, $M_t^*$ is the selected method, $\mathbf{Q}_{\theta}(C_t,WS_t,M,\mathbf{w}_t)$ is the estimated vector value of choosing $M$ in symbolic state $WS_t$ for task $C_t$ under the current preference, and $\mathrm{arg\,max}$ returns the candidate with the highest utility under $\mathbf{w}_t$.
 
 `Q` is a vector-valued estimate of the consequence of choosing method `M`, not an authorization to execute an arbitrary primitive action. The planner's feasible-method mask is authoritative: MORL cannot select a method excluded by symbolic preconditions. The online path does not expand or compare partial plans for every candidate: one masked inference selects $M_t^*$, and HTN decomposes only $M_t^*$.
 
@@ -137,7 +137,7 @@ They are not restricted to effects directly produced by its own actions.
 Only the initial planning state originates from sensors:
 
 $$
-\hat S_0=\operatorname{copy}(S^{obs}),\qquad
+\hat S_0=\mathrm{copy}(S^{obs}),\qquad
 \hat S_{k+1}=T_{HTN}(\hat S_k,a_k),\qquad
 \hat{\mathbf r}_k=R(\hat S_k,\hat S_{k+1}).
 $$
@@ -279,8 +279,8 @@ Time and energy are thus distinct objectives. For safety, a proposed threat
 score uses perceived enemies, their types and distances, and agent health:
 
 $$
-\operatorname{Risk}(S)=
-\left(\sum_{e\in E(S)}\operatorname{Threat}(type_e)e^{-\lambda d_e}\right)
+\mathrm{Risk}(S)=
+\left(\sum_{e\in E(S)}\mathrm{Threat}(type_e)e^{-\lambda d_e}\right)
 \left[1+\alpha_v\left(1-\frac{health}{health_{max}}\right)\right].
 $$
 
@@ -289,9 +289,9 @@ bounded by a positive maximum. Empty perceived enemy sets yield zero perceived
 enemy risk, not proof of safety under partial observability. Static GridWorld
 hazards need their own domain-specific risk contribution.
 
-For equal-duration steps, use $r_{safety}=-\operatorname{Risk}(S')$.
+For equal-duration steps, use $r_{safety}=-\mathrm{Risk}(S')$.
 For variable-duration actions, the proposed exposure cost is
-$r_{safety}=-\operatorname{Risk}(S')\Delta t$, an endpoint approximation to
+$r_{safety}=-\mathrm{Risk}(S')\Delta t$, an endpoint approximation to
 integrated risk. Intermediate observations improve that approximation. Constant
 danger remains costly, whereas $-\Delta Risk$ would be zero. Energy enters
 safety only if the domain explicitly models low energy as vulnerability;
