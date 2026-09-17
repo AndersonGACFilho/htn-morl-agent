@@ -76,6 +76,7 @@ nav:
   - Proposed architecture:
       - MORL-guided HTN method selection: architecture/symbolic-morl.md
       - Preference-weight generation: architecture/preference-weight-generation.md
+      - Q-function representation options: architecture/q-function-representation.md
   - Learning notes:
       - Planning:
           - Behavior trees: annotations/planning/behavior-trees.md
