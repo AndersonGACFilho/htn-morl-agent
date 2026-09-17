@@ -51,7 +51,7 @@ Qi, below):
   $\mathbf{Q}_\theta$ before $\arg\max$/scalarization.
 - **Method identity as input.** Instead of one fixed output per action,
   make the network compute $\mathbf{Q}_\theta(WS_t, M, \mathbf{w}_t)$ from
-  $[WS_t, \operatorname{one\_hot}(M)]$ concatenated as input, and call it
+  $[WS_t, \mathrm{onehot}(M)]$ concatenated as input, and call it
   once per $M \in \mathcal{M}_{\mathrm{valid}}(C_t, WS_t)$. The output size
   no longer depends on the size of the domain's action space at all.
 
@@ -88,7 +88,7 @@ below for how to lift that specific restriction.
   lets the network generalize to goals seen only partially during
   training. Substituting "method" for "goal" is exactly the
   input-concatenation form above: one network conditioned on
-  $[WS_t, \operatorname{one\_hot}(M)]$ instead of one output slot per
+  $[WS_t, \mathrm{onehot}(M)]$ instead of one output slot per
   method. This is the historical origin of that pattern, not an
   improvisation invented for this page.
 - **Formal equivalence of the two forms — Qi (item 30).** This result shows
